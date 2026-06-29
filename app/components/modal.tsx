@@ -17,6 +17,48 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
   );
 }
 
+export function ConfirmModal({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmLabel = "Delete",
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={title}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { onConfirm(); onClose(); }}
+            className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium"
+          >
+            {confirmLabel}
+          </button>
+        </>
+      }
+    >
+      <p className="text-sm muted">{message}</p>
+    </Modal>
+  );
+}
+
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">

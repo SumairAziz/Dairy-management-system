@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { MetricCard, PieChart, BarChart } from "@/app/components/custom-charts";
-import { Modal, Field, inputCls } from "@/app/components/modal";
+import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { Plus, Trash2 } from "lucide-react";
 import { useFarms, useFarm, useCreateFarm, useUpdateFarm, useDeleteFarm } from "@/hooks";
 import type { Farm, FarmDetail } from "@/types";
@@ -34,6 +34,7 @@ export default function FarmsPage() {
 
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
 
   const createMutation = useCreateFarm();
@@ -58,13 +59,7 @@ export default function FarmsPage() {
   }
 
   function remove(id: number) {
-    if (!confirm("Delete this farm and all its data?")) return;
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        if (selected === id) setSelected(null);
-      },
-      onError: (err) => setError(err.message),
-    });
+    setDeleteId(id);
   }
 
   function update(patch: UpdateFarmInput) {
@@ -269,6 +264,18 @@ export default function FarmsPage() {
         </div>
       </Modal>
 
+      <ConfirmModal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() =>
+          deleteMutation.mutate(deleteId!, {
+            onSuccess: () => { if (selected === deleteId) setSelected(null); },
+            onError: (err) => setError(err.message),
+          })
+        }
+        title="Delete Farm"
+        message="Are you sure you want to delete this farm and all its data? This action cannot be undone."
+      />
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="surface border border-rose-500/40 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
-import { Modal, Field, inputCls } from "@/app/components/modal";
+import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
 import {
   Plus,
@@ -169,6 +169,7 @@ export default function MilkProductionPage() {
 
   const [animalSearch, setAnimalSearch] = useState("");
   const today = new Date().toISOString().split("T")[0];
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<Record<string, string>>({
     animal_id: "",
     production_date: today,
@@ -235,8 +236,7 @@ export default function MilkProductionPage() {
   }
 
   function remove(id: number) {
-    if (!confirm("Are you sure you want to delete this milk record?")) return;
-    deleteMutation.mutate(id, { onError: (err) => setError(err.message) });
+    setDeleteId(id);
   }
 
   return (
@@ -775,6 +775,17 @@ export default function MilkProductionPage() {
         </div>
       </Modal>
 
+      <ConfirmModal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() =>
+          deleteMutation.mutate(deleteId!, {
+            onError: (err) => setError(err.message),
+          })
+        }
+        title="Delete Milk Record"
+        message="Are you sure you want to delete this milk record? This action cannot be undone."
+      />
       {/* Error modal */}
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">

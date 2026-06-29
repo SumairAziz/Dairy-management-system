@@ -1,0 +1,11 @@
+{
+  "/api/heat-cycles/route": "app/api/heat-cycles/route.js",
+  "/api/animals/route": "app/api/animals/route.js",
+  "/api/pregnancy-records/route": "app/api/pregnancy-records/route.js",
+  "/animals/[id]/page": "app/animals/[id]/page.js",
+  "/pregnancy/page": "app/pregnancy/page.js",
+  "/page": "app/page.js",
+  "/heat-cycles/page": "app/heat-cycles/page.js",
+  "/breeding/page": "app/breeding/page.js",
+  "/animals/page": "app/animals/page.js"
+}

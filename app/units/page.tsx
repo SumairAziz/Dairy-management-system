@@ -8,7 +8,7 @@ import {
   StatusPill,
   healthKind,
 } from "@/app/components/custom-charts";
-import { Modal, Field, inputCls } from "@/app/components/modal";
+import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { Plus, Trash2, Search, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import {
@@ -199,6 +199,7 @@ export default function UnitsPage() {
 
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<Record<string, string>>({
     unit_name: "",
     unit_type: "Barn",
@@ -340,13 +341,7 @@ export default function UnitsPage() {
   }
 
   function remove(id: number) {
-    if (!confirm("Delete this unit?")) return;
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        if (selectedUnit === id) setSelectedUnit(null);
-      },
-      onError: (err) => setError(err.message),
-    });
+    setDeleteId(id);
   }
 
   function update(patch: UpdateUnitInput) {
@@ -842,6 +837,18 @@ export default function UnitsPage() {
         </div>
       </Modal>
 
+      <ConfirmModal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() =>
+          deleteMutation.mutate(deleteId!, {
+            onSuccess: () => { if (selectedUnit === deleteId) setSelectedUnit(null); },
+            onError: (err) => setError(err.message),
+          })
+        }
+        title="Delete Unit"
+        message="Are you sure you want to delete this unit? This action cannot be undone."
+      />
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="surface border border-rose-500/40 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">

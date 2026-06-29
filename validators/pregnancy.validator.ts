@@ -25,11 +25,15 @@ export const pregnancyIdParamSchema = z.object({
 
 export const pregnancyQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(1000).default(20),
   animal_id: z.coerce.number().int().positive().optional(),
   status: z.string().optional(),
 });
 
-export type CreatePregnancyRecordInput = z.infer<typeof createPregnancyRecordSchema>;
-export type UpdatePregnancyRecordInput = z.infer<typeof updatePregnancyRecordSchema>;
+export type CreatePregnancyRecordInput = z.infer<
+  typeof createPregnancyRecordSchema
+>;
+export type UpdatePregnancyRecordInput = z.infer<
+  typeof updatePregnancyRecordSchema
+>;
 export type PregnancyQueryParams = z.infer<typeof pregnancyQuerySchema>;

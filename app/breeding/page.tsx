@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
-import { Modal, Field, inputCls } from "@/app/components/modal";
+import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
 import {
   Plus,
@@ -148,6 +148,7 @@ export default function BreedingPage() {
   const activeHeatCycle =
     (heatData?.data ?? []).find((h) => !h.heat_end_date) ?? null;
   const [closeHeatCycle, setCloseHeatCycle] = useState(true);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   function openCreate() {
     setEditingId(null);
@@ -238,15 +239,7 @@ export default function BreedingPage() {
   }
 
   function handleDelete(id: number) {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this breeding record? This action cannot be undone.",
-      )
-    )
-      return;
-    deleteMutation.mutate(id, {
-      onError: (err) => alert(err.message),
-    });
+    setDeleteId(id);
   }
 
   function handleMethodChange(method: string) {
@@ -645,6 +638,17 @@ export default function BreedingPage() {
           </Field>
         </div>
       </Modal>
+      <ConfirmModal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() =>
+          deleteMutation.mutate(deleteId!, {
+            onError: (err) => alert(err.message),
+          })
+        }
+        title="Delete Breeding Record"
+        message="Are you sure you want to delete this breeding record? This action cannot be undone."
+      />
     </>
   );
 }

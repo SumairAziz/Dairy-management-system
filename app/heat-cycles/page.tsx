@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
-import { Modal, Field, inputCls } from "@/app/components/modal";
+import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { Plus, Filter, ChevronLeft, ChevronRight, Trash2, Pencil, Flame } from "lucide-react";
 import { useHeatCycles, useCreateHeatCycle, useUpdateHeatCycle, useDeleteHeatCycle, useAnimals } from "@/hooks";
 import type { HeatCycleRecord, Animal } from "@/types";
@@ -29,6 +29,7 @@ export default function HeatCyclesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HeatCycleRecord | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ ...defaultForm });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const queryParams = useMemo(
     () => ({
@@ -112,10 +113,7 @@ export default function HeatCyclesPage() {
   }
 
   function handleDelete(id: number) {
-    if (!window.confirm("Are you sure you want to delete this heat cycle record?")) return;
-    deleteMutation.mutate(id, {
-      onError: (err) => alert(err.message),
-    });
+    setDeleteId(id);
   }
 
   function calcDuration(start: string | null, end: string | null): string {
@@ -442,6 +440,17 @@ export default function HeatCyclesPage() {
           </div>
         </div>
       </Modal>
+      <ConfirmModal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() =>
+          deleteMutation.mutate(deleteId!, {
+            onError: (err) => alert(err.message),
+          })
+        }
+        title="Delete Heat Cycle Record"
+        message="Are you sure you want to delete this heat cycle record? This action cannot be undone."
+      />
     </>
   );
 }

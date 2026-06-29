@@ -3,6 +3,7 @@ import { useState, use } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { MetricCard } from "@/app/components/custom-charts";
 import { useAnimal, useAnimals, useUpdateAnimal, useFarms, useUnits } from "@/hooks";
+import { useLatestWeight, useDailyMilk } from "./components/AnimalStatusCard";
 import { AnimalPicker } from "./components/AnimalPicker";
 import { AnimalProfileTab, AnimalStatusCard } from "./components/AnimalProfileTab";
 import { AnimalLineageCard } from "./components/AnimalLineageCard";
@@ -31,8 +32,10 @@ export default function AnimalDetailPage({
   const { data: allAnimalsRes } = useAnimals();
   const { data: farmsList } = useFarms();
   const { data: unitsList } = useUnits();
-
   const updateMutation = useUpdateAnimal();
+  // Hooks must run unconditionally — before any early returns.
+  const { weight: liveWeight } = useLatestWeight(animalId);
+  const { liters: liveMilk } = useDailyMilk(animalId);
 
   if (animalLoading) return <div className="p-6 muted">Loading…</div>;
   if (!animal) return <div className="p-6 text-rose-500">Animal not found.</div>;
@@ -48,13 +51,8 @@ export default function AnimalDetailPage({
   const ageMonths = Math.floor(
     (Date.now() - new Date(animal.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30),
   );
-
-  const currentWeight = Number(
-    (animal as unknown as Record<string, number | null>).current_weight_kg || 0,
-  );
-  const dailyMilk = Number(
-    (animal as unknown as Record<string, number | null>).daily_milk_production_liters || 0,
-  );
+  const currentWeight = liveWeight ?? 0;
+  const dailyMilk = liveMilk ?? 0;
 
   return (
     <>
