@@ -1,0 +1,65 @@
+import { prisma } from "@/lib/db";
+import { serialize } from "@/lib/serialize";
+import { NotFoundError } from "@/lib/errors";
+import type { VaccinationQueryParams, CreateVaccinationInput, UpdateVaccinationInput } from "@/validators/vaccination.validator";
+
+export async function findAll(params: VaccinationQueryParams) {
+  const { page, pageSize, ...filters } = params;
+  const where: Parameters<typeof prisma.vaccination_records.findMany>[0]["where"] = {};
+
+  if (filters.animal_id) where.animal_id = filters.animal_id;
+  if (filters.vaccine_name) where.vaccine_name = { contains: filters.vaccine_name, mode: "insensitive" };
+  if (filters.upcoming === "true") {
+    where.next_due_date = { gte: new Date() };
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.vaccination_records.findMany({
+      where,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { vaccination_date: "desc" },
+      include: { animals: { select: { animal_id: true, tag_number: true, animal_name: true } } },
+    }),
+    prisma.vaccination_records.count({ where }),
+  ]);
+  return serialize({ data, total, page, pageSize });
+}
+
+export async function findById(id: number) {
+  const record = await prisma.vaccination_records.findUnique({
+    where: { vaccination_id: id },
+    include: { animals: true },
+  });
+  if (!record) throw new NotFoundError("Vaccination record");
+  return serialize(record);
+}
+
+export async function create(data: CreateVaccinationInput) {
+  const created = await prisma.vaccination_records.create({
+    data: {
+      ...data,
+      vaccination_date: data.vaccination_date ? new Date(data.vaccination_date) : null,
+      next_due_date: data.next_due_date ? new Date(data.next_due_date) : null,
+    },
+  });
+  return serialize(created);
+}
+
+export async function update(id: number, data: UpdateVaccinationInput) {
+  await findById(id);
+  const updated = await prisma.vaccination_records.update({
+    where: { vaccination_id: id },
+    data: {
+      ...data,
+      vaccination_date: data.vaccination_date ? new Date(data.vaccination_date) : null,
+      next_due_date: data.next_due_date ? new Date(data.next_due_date) : null,
+    },
+  });
+  return serialize(updated);
+}
+
+export async function remove(id: number) {
+  await findById(id);
+  await prisma.vaccination_records.delete({ where: { vaccination_id: id } });
+}
