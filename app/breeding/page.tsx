@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
@@ -149,6 +149,18 @@ export default function BreedingPage() {
     (heatData?.data ?? []).find((h) => !h.heat_end_date) ?? null;
   const [closeHeatCycle, setCloseHeatCycle] = useState(true);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  // Pre-fill the form when navigated from another page with ?animal_id=X
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const aid = params.get("animal_id");
+    if (aid) {
+      setForm((prev) => ({ ...prev, female_animal_id: aid }));
+      setEditingId(null);
+      setOpen(true);
+      window.history.replaceState({}, "", "/breeding");
+    }
+  }, []);
 
   function openCreate() {
     setEditingId(null);

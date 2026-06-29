@@ -886,6 +886,9 @@ html{
 .h-px{
   height: 1px;
 }
+.h-2{
+  height: 0.5rem;
+}
 .max-h-48{
   max-height: 12rem;
 }
@@ -952,6 +955,9 @@ html{
 .w-full{
   width: 100%;
 }
+.w-2{
+  width: 0.5rem;
+}
 .min-w-0{
   min-width: 0px;
 }
@@ -960,6 +966,9 @@ html{
 }
 .min-w-\[18px\]{
   min-width: 18px;
+}
+.min-w-\[960px\]{
+  min-width: 960px;
 }
 .max-w-2xl{
   max-width: 42rem;
@@ -1111,6 +1120,13 @@ html{
 }
 .gap-6{
   gap: 1.5rem;
+}
+.gap-x-6{
+  -moz-column-gap: 1.5rem;
+       column-gap: 1.5rem;
+}
+.gap-y-3{
+  row-gap: 0.75rem;
 }
 .space-y-1 > :not([hidden]) ~ :not([hidden]){
   --tw-space-y-reverse: 0;
@@ -1578,6 +1594,22 @@ html{
 .bg-red-600{
   --tw-bg-opacity: 1;
   background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
+}
+.bg-blue-400{
+  --tw-bg-opacity: 1;
+  background-color: rgb(96 165 250 / var(--tw-bg-opacity, 1));
+}
+.bg-blue-500\/15{
+  background-color: rgb(59 130 246 / 0.15);
+}
+.bg-brand-500\/10{
+  background-color: rgb(20 184 166 / 0.1);
+}
+.bg-brand-600\/20{
+  background-color: rgb(13 148 136 / 0.2);
+}
+.bg-white\/10{
+  background-color: rgb(255 255 255 / 0.1);
 }
 .bg-gradient-to-br{
   background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
@@ -2324,6 +2356,12 @@ html, body { background: rgb(var(--bg)); color: rgb(var(--text)); }
   --tw-bg-opacity: 1;
   background-color: rgb(185 28 28 / var(--tw-bg-opacity, 1));
 }
+.hover\:bg-brand-500\/10:hover{
+  background-color: rgb(20 184 166 / 0.1);
+}
+.hover\:bg-brand-600\/30:hover{
+  background-color: rgb(13 148 136 / 0.3);
+}
 .hover\:text-accent-foreground:hover{
   color: hsl(var(--accent-foreground));
 }
@@ -2667,6 +2705,9 @@ html, body { background: rgb(var(--bg)); color: rgb(var(--text)); }
   }
   .md\:grid-cols-4{
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .md\:grid-cols-5{
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .md\:divide-y-0 > :not([hidden]) ~ :not([hidden]){
     --tw-divide-y-reverse: 0;
