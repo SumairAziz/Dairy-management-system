@@ -10,6 +10,11 @@ import {
   Trash2,
   Pencil,
   Baby,
+  CheckCircle2,
+  Clock,
+  CalendarClock,
+  AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import {
   usePregnancyRecords,
@@ -350,17 +355,13 @@ export default function PregnancyPage() {
                       </td>
                       <td className="px-3 py-2">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            STATUS_STYLES[r.status ?? ""] ??
-                            "bg-slate-500/15 text-slate-400"
-                          }`}
-                        >
-                          <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${metrics.dynamicStatusStyle}`}>
+
                             className={`w-1.5 h-1.5 rounded-full ${
-                              STATUS_DOT[r.status ?? ""] ?? "bg-slate-400"
+                              metrics.dynamicStatusDot
                             }`}
                           />
-                          {r.status ?? "—"}
+                          {metrics.dynamicStatus}
                         </span>
                       </td>
                       <td className="px-3 py-2">
