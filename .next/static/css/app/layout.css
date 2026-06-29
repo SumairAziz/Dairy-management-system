@@ -1041,6 +1041,9 @@ html{
 .cursor-text{
   cursor: text;
 }
+.cursor-not-allowed{
+  cursor: not-allowed;
+}
 .select-none{
   -webkit-user-select: none;
      -moz-user-select: none;
@@ -1335,6 +1338,9 @@ html{
 }
 .border-white\/5{
   border-color: rgb(255 255 255 / 0.05);
+}
+.border-black\/10{
+  border-color: rgb(0 0 0 / 0.1);
 }
 .border-t-brand-500{
   --tw-border-opacity: 1;
@@ -2229,6 +2235,14 @@ html, body { background: rgb(var(--bg)); color: rgb(var(--text)); }
 .placeholder\:text-muted-foreground::placeholder{
   color: hsl(var(--muted-foreground));
 }
+.placeholder\:text-slate-500::-moz-placeholder{
+  --tw-text-opacity: 1;
+  color: rgb(100 116 139 / var(--tw-text-opacity, 1));
+}
+.placeholder\:text-slate-500::placeholder{
+  --tw-text-opacity: 1;
+  color: rgb(100 116 139 / var(--tw-text-opacity, 1));
+}
 .after\:absolute::after{
   content: var(--tw-content);
   position: absolute;
@@ -2386,6 +2400,10 @@ html, body { background: rgb(var(--bg)); color: rgb(var(--text)); }
 .hover\:text-white:hover{
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+}
+.hover\:text-red-400:hover{
+  --tw-text-opacity: 1;
+  color: rgb(248 113 113 / var(--tw-text-opacity, 1));
 }
 .hover\:underline:hover{
   text-decoration-line: underline;

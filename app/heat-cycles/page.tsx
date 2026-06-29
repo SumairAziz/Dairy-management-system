@@ -28,6 +28,7 @@ import {
   usePregnancyRecords,
 } from "@/hooks";
 import type { HeatCycleRecord } from "@/types";
+import { AnimalCombobox } from "@/app/components/animal-combobox";
 
 const DEFAULT_CYCLE_DAYS = 21;
 
@@ -93,7 +94,7 @@ function StatusBadge({ status }: { status: HeatStatus }) {
 
 const defaultForm = {
   animal_id: "",
-  heat_start_date: "",
+  heat_start_date: new Date().toISOString().split("T")[0],
   heat_end_date: "",
   detection_method: "",
   confidence_score: "",
@@ -867,18 +868,11 @@ export default function HeatCyclesPage() {
       >
         <div className="grid grid-cols-2 gap-4">
           <Field label="Animal">
-            <select
-              className={inputCls}
+            <AnimalCombobox
+              animals={animals?.data ?? []}
               value={form.animal_id}
-              onChange={(e) => setForm({ ...form, animal_id: e.target.value })}
-            >
-              <option value="">Select…</option>
-              {animals?.data.map((a) => (
-                <option key={a.animal_id} value={a.animal_id}>
-                  #{a.tag_number} - {a.animal_name || "Unnamed"}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setForm({ ...form, animal_id: id })}
+            />
           </Field>
           <Field label="Detection Method">
             <select

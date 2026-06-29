@@ -34,6 +34,7 @@ import {
   PREGNANCY_STATUS_FILTERS,
 } from "@/lib/pregnancy-status";
 import type { PregnancyRecord } from "@/types";
+import { AnimalCombobox } from "@/app/components/animal-combobox";
 
 const STATUS_OPTIONS = [
   "Pending",
@@ -705,32 +706,23 @@ export default function PregnancyPage() {
       >
         <div className="grid grid-cols-2 gap-4">
           <Field label="Animal *">
-            <select
-              className={inputCls}
+            <AnimalCombobox
+              animals={animals}
               value={String(form.animal_id)}
-              onChange={(e) => {
-                // Clear dates and note whenever a new animal is picked so the
-                // useEffect can re-populate from that animal's breeding history.
+              onChange={(id) => {
                 setDeliveryDateNote(null);
                 setForm((f) =>
                   editId === null
                     ? {
                         ...f,
-                        animal_id: e.target.value,
+                        animal_id: id,
                         insemination_date: "",
                         expected_delivery_date: "",
                       }
-                    : { ...f, animal_id: e.target.value },
+                    : { ...f, animal_id: id },
                 );
               }}
-            >
-              <option value="">Select…</option>
-              {animals.map((a) => (
-                <option key={a.animal_id} value={a.animal_id}>
-                  #{a.tag_number} - {a.animal_name || "Unnamed"}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Insemination Date *">

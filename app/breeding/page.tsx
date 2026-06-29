@@ -28,6 +28,7 @@ import {
   useUpdateHeatCycle,
 } from "@/hooks";
 import type { BreedingRecord, Animal } from "@/types";
+import { AnimalCombobox } from "@/app/components/animal-combobox";
 import {
   MOCK_SEMEN_INVENTORY,
   semenBatchLabel,
@@ -534,20 +535,11 @@ export default function BreedingPage() {
       >
         <div className="grid grid-cols-2 gap-4">
           <Field label="Female Animal">
-            <select
-              className={inputCls}
+            <AnimalCombobox
+              animals={femaleAnimals?.data ?? []}
               value={form.female_animal_id}
-              onChange={(e) =>
-                setForm({ ...form, female_animal_id: e.target.value })
-              }
-            >
-              <option value="">Select…</option>
-              {femaleAnimals?.data.map((a) => (
-                <option key={a.animal_id} value={a.animal_id}>
-                  #{a.tag_number} - {a.animal_name || "Unnamed"}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setForm({ ...form, female_animal_id: id })}
+            />
           </Field>
           {form.method === "Artificial Insemination" ? (
             <Field label="Semen Batch (AI)">
@@ -573,20 +565,12 @@ export default function BreedingPage() {
             </Field>
           ) : (
             <Field label="Male Animal">
-              <select
-                className={inputCls}
+              <AnimalCombobox
+                animals={maleAnimals?.data ?? []}
                 value={form.male_animal_id}
-                onChange={(e) =>
-                  setForm({ ...form, male_animal_id: e.target.value })
-                }
-              >
-                <option value="">None</option>
-                {maleAnimals?.data.map((a) => (
-                  <option key={a.animal_id} value={a.animal_id}>
-                    #{a.tag_number} - {a.animal_name || "Unnamed"}
-                  </option>
-                ))}
-              </select>
+                onChange={(id) => setForm({ ...form, male_animal_id: id })}
+                placeholder="Search sire by tag, name, breed…"
+              />
             </Field>
           )}
           <Field label="Breeding Date">
