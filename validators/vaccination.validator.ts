@@ -7,6 +7,9 @@ export const createVaccinationSchema = z.object({
   next_due_date: z.string().nullable().optional(),
   administered_by: z.string().max(100).nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Pregnancy workflow fields (not exposed in the manual create form)
+  source: z.string().max(50).nullable().optional(),
+  pregnancy_id: z.number().int().positive().nullable().optional(),
 });
 
 export const updateVaccinationSchema = z.object({
@@ -16,6 +19,8 @@ export const updateVaccinationSchema = z.object({
   next_due_date: z.string().nullable().optional(),
   administered_by: z.string().max(100).nullable().optional(),
   notes: z.string().nullable().optional(),
+  source: z.string().max(50).nullable().optional(),
+  pregnancy_id: z.number().int().positive().nullable().optional(),
 });
 
 export const vaccinationIdParamSchema = z.object({
@@ -28,6 +33,8 @@ export const vaccinationQuerySchema = z.object({
   animal_id: z.coerce.number().int().positive().optional(),
   vaccine_name: z.string().optional(),
   upcoming: z.enum(["true", "false"]).optional(),
+  source: z.string().optional(),
+  pregnancy_id: z.coerce.number().int().positive().optional(),
 });
 
 export type CreateVaccinationInput = z.infer<typeof createVaccinationSchema>;

@@ -45,6 +45,7 @@ export interface Farm {
   country: string | null;
   total_area_acres: number | null;
   is_active: boolean;
+  notes: string | null;
   created_at: string;
   updated_at: string;
   units?: Unit[];
@@ -80,6 +81,7 @@ export interface Unit {
   unit_type: string;
   capacity: number | null;
   description: string | null;
+  notes: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -126,6 +128,10 @@ export interface Animal {
   birth_weight_kg: number | null;
   lifecycle_stage: string;
   is_active: boolean;
+  /** "PREGNANT" | "CALVED" | "FAILED" | null — set by pregnancy/calving workflow */
+  pregnancy_status: string | null;
+  /** "LACTATING" | "DRY" | null — set by calving workflow */
+  lactation_status: string | null;
   created_at: string;
   updated_at: string;
   farms?: Farm;
@@ -195,6 +201,10 @@ export interface VaccinationRecord {
   next_due_date: string | null;
   administered_by: string | null;
   notes: string | null;
+  /** "pregnancy_workflow" for auto-generated records, null for manual */
+  source: string | null;
+  /** Linked pregnancy record id for auto-generated reminders */
+  pregnancy_id: number | null;
   animals?: Animal;
 }
 
@@ -222,6 +232,22 @@ export interface PregnancyRecord {
   status: string | null;
   created_at: string;
   animals?: Animal;
+}
+
+export interface CalvingRecord {
+  calving_id: number;
+  mother_id: number;
+  pregnancy_id: number | null;
+  calving_date: string;
+  outcome: string | null;
+  calf_gender: string | null;
+  calf_tag: string | null;
+  calf_id: number | null;
+  notes: string | null;
+  created_at: string;
+  mother?: Pick<Animal, "animal_id" | "tag_number" | "animal_name">;
+  calf?: Pick<Animal, "animal_id" | "tag_number" | "animal_name"> | null;
+  pregnancy_records?: Pick<PregnancyRecord, "pregnancy_id" | "insemination_date" | "expected_delivery_date"> | null;
 }
 
 export interface HeatCycleRecord {
@@ -268,6 +294,9 @@ export interface DashboardStats {
   pregnancyByStatus: Array<{ label: string; value: number }>;
   lifecycleDist: Array<{ label: string; value: number }>;
   upcomingVaccinations: number;
+  overdueVaccinations: number;
+  animalsInHeat: number;
+  upcomingDeliveries: number;
   farmCapacity: Array<{ label: string; value: number; max: number }>;
 }
 

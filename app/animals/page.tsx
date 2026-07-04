@@ -1,8 +1,8 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, Field, inputCls } from "@/app/components/modal";
-import { Plus, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Filter, ChevronLeft, ChevronRight, Baby } from "lucide-react";
 import Link from "next/link";
 import {
   useAnimals,
@@ -11,8 +11,9 @@ import {
   useBreeds,
   useFarms,
   useUnits,
+  useBreedingRecords,
 } from "@/hooks";
-import type { Animal, Species, Breed, Farm, Unit } from "@/types";
+import { AnimalCombobox } from "@/app/components/animal-combobox";
 
 const LIFECYCLE_STAGES = [
   "Calf",
@@ -38,6 +39,10 @@ const defaultForm = {
   breed_id: "",
   birth_weight_kg: "",
   lifecycle_stage: "Calf",
+  mother_id: "",
+  father_id: "",
+  father_mode: "existing",
+  father_text: "",
 };
 
 export default function AnimalsPage() {
@@ -69,6 +74,24 @@ export default function AnimalsPage() {
 
   const createMutation = useCreateAnimal();
 
+  const [newbornMotherId, setNewbornMotherId] = useState("");
+  const newbornPrefillApplied = useRef(false);
+
+  const { data: femaleAnimals } = useAnimals({
+    pageSize: "500",
+    gender: "F",
+    is_active: "true",
+  });
+  const { data: maleAnimals } = useAnimals({
+    pageSize: "500",
+    gender: "M",
+    is_active: "true",
+  });
+  const { data: newbornBreeding } = useBreedingRecords(
+    { female_animal_id: newbornMotherId, pageSize: "1" },
+    Boolean(newbornMotherId),
+  );
+
   useEffect(() => {
     if (open && species && species.length > 0 && !form.species_id) {
       setForm((f) => ({ ...f, species_id: String(species[0].species_id) }));
@@ -88,6 +111,46 @@ export default function AnimalsPage() {
       }
     }
   }, [form.species_id, breeds, form.breed_id]);
+
+  // Read URL params written by the "Add Newborn" button on the Pregnancy page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("newborn") !== "1") return;
+    const motherId = params.get("mother_id") ?? "";
+    const birthDate = params.get("birth_date") ?? "";
+    if (motherId) setNewbornMotherId(motherId);
+    setForm((f) => ({
+      ...f,
+      mother_id: motherId,
+      date_of_birth: birthDate || f.date_of_birth,
+      lifecycle_stage: "Calf",
+    }));
+    setOpen(true);
+    window.history.replaceState({}, "", "/animals");
+  }, []);
+
+  // Once the mother's last breeding record loads, pre-fill the father field.
+  useEffect(() => {
+    if (newbornPrefillApplied.current) return;
+    if (!newbornMotherId || !newbornBreeding?.data?.length) return;
+    newbornPrefillApplied.current = true;
+    const breeding = newbornBreeding.data[0];
+    if (breeding.method === "Artificial Insemination") {
+      setForm((f) => ({
+        ...f,
+        father_mode: "external",
+        father_text: breeding.semen_batch_id
+          ? `Semen batch: ${breeding.semen_batch_id}`
+          : "AI insemination",
+      }));
+    } else if (breeding.male_animal_id) {
+      setForm((f) => ({
+        ...f,
+        father_mode: "existing",
+        father_id: String(breeding.male_animal_id),
+      }));
+    }
+  }, [newbornBreeding, newbornMotherId]);
 
   function create() {
     if (!form.farm_id) {
@@ -116,12 +179,19 @@ export default function AnimalsPage() {
         : null,
       lifecycle_stage: form.lifecycle_stage,
       is_active: true,
+      mother_id: form.mother_id ? Number(form.mother_id) : null,
+      father_id:
+        form.father_mode === "existing" && form.father_id
+          ? Number(form.father_id)
+          : null,
     };
 
     createMutation.mutate(payload, {
       onSuccess: () => {
         setOpen(false);
         setForm({ ...defaultForm });
+        setNewbornMotherId("");
+        newbornPrefillApplied.current = false;
       },
       onError: (err) => {
         alert(err.message);
@@ -426,7 +496,12 @@ export default function AnimalsPage() {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          setForm({ ...defaultForm });
+          setNewbornMotherId("");
+          newbornPrefillApplied.current = false;
+        }}
         title="New animal"
         footer={
           <>
@@ -515,6 +590,78 @@ export default function AnimalsPage() {
               }
             />
           </Field>
+
+          {/* ── Lineage ───────────────────────────────────────────────── */}
+          {newbornMotherId && (
+            <div className="col-span-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+              <Baby size={14} className="text-emerald-400 shrink-0" />
+              <span>Pre-filling from delivery record — review and complete all required fields.</span>
+            </div>
+          )}
+          <Field label="Mother (optional)">
+            <AnimalCombobox
+              animals={femaleAnimals?.data ?? []}
+              value={form.mother_id}
+              onChange={(id) => setForm({ ...form, mother_id: id })}
+              placeholder="Search dam by tag, name, breed…"
+            />
+          </Field>
+          <div>
+            <div className="text-xs uppercase tracking-wider muted mb-1">
+              Father (optional)
+            </div>
+            <div className="flex gap-1 mb-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({ ...form, father_mode: "existing", father_text: "" })
+                }
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  form.father_mode === "existing"
+                    ? "bg-brand-500/15 border-brand-500/40 text-brand-400"
+                    : "surface border muted"
+                }`}
+              >
+                Farm Bull
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({ ...form, father_mode: "external", father_id: "" })
+                }
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  form.father_mode === "external"
+                    ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
+                    : "surface border muted"
+                }`}
+              >
+                AI / External
+              </button>
+            </div>
+            {form.father_mode === "existing" ? (
+              <AnimalCombobox
+                animals={maleAnimals?.data ?? []}
+                value={form.father_id}
+                onChange={(id) => setForm({ ...form, father_id: id })}
+                placeholder="Search sire by tag, name, breed…"
+              />
+            ) : (
+              <div>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Semen batch AI-2024-001 or sire name…"
+                  value={form.father_text}
+                  onChange={(e) =>
+                    setForm({ ...form, father_text: e.target.value })
+                  }
+                />
+                <p className="mt-1 text-xs muted">
+                  Informational only — no farm animal record will be linked.
+                </p>
+              </div>
+            )}
+          </div>
+
           <Field label="Farm">
             <select
               className={inputCls}

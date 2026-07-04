@@ -1,11 +1,4 @@
 {
-  "/api/breeding-records/route": "app/api/breeding-records/route.js",
-  "/api/animals/route": "app/api/animals/route.js",
-  "/api/pregnancy-records/route": "app/api/pregnancy-records/route.js",
-  "/pregnancy/page": "app/pregnancy/page.js",
-  "/heat-cycles/page": "app/heat-cycles/page.js",
-  "/breeding/page": "app/breeding/page.js",
-  "/animals/page": "app/animals/page.js",
-  "/vaccinations/page": "app/vaccinations/page.js",
-  "/milk-production/page": "app/milk-production/page.js"
+  "/api/dashboard/route": "app/api/dashboard/route.js",
+  "/page": "app/page.js"
 }

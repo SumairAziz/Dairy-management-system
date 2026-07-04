@@ -4,6 +4,90 @@
 // gestation length used for progress/remaining-days math.
 export const GESTATION_DAYS = 283;
 
+// ── Status constants (single source of truth for every status check) ─────────
+
+/** Statuses that represent an ongoing pregnancy — animal IS currently pregnant. */
+export const ACTIVE_PREGNANCY_STATUSES = [
+  "Pending",
+  "Confirmed",
+  "In Progress",
+] as const;
+
+/** Statuses that represent a concluded pregnancy — animal is NO longer pregnant. */
+export const TERMINAL_PREGNANCY_STATUSES = [
+  "Delivered",
+  "Failed",
+  "Aborted",
+] as const;
+
+// ── Predicate helpers — use these everywhere instead of inline string checks ──
+
+/** True when the pregnancy record represents an ongoing pregnancy. */
+export function isActivePregnancy(record: {
+  status?: string | null;
+}): boolean {
+  return (ACTIVE_PREGNANCY_STATUSES as readonly string[]).includes(
+    record.status ?? "",
+  );
+}
+
+/** True for bare status strings — useful in Prisma `{ in: [...] }` clauses. */
+export function isPregnantStatus(status: string | null | undefined): boolean {
+  return (ACTIVE_PREGNANCY_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/** True when the pregnancy has fully resolved (Delivered, Failed, or Aborted). */
+export function isCompletedPregnancy(
+  status: string | null | undefined,
+): boolean {
+  return (TERMINAL_PREGNANCY_STATUSES as readonly string[]).includes(
+    status ?? "",
+  );
+}
+
+/** True only when a successful birth was recorded. */
+export function isDeliveredPregnancy(
+  status: string | null | undefined,
+): boolean {
+  return status === "Delivered";
+}
+
+/** True when the pregnancy ended without a live birth (Failed or Aborted). */
+export function isFailedPregnancy(status: string | null | undefined): boolean {
+  return status === "Failed" || status === "Aborted";
+}
+
+// ── Animal-level business rule helpers ───────────────────────────────────────
+
+/**
+ * Can this animal be bred?
+ * Uses the denormalized pregnancy_status field on the animal for fast
+ * list-level checks. For authoritative checks, query pregnancy_records.
+ */
+export function canBreedAnimal(animal: {
+  pregnancy_status?: string | null;
+}): boolean {
+  return animal.pregnancy_status !== "PREGNANT";
+}
+
+/**
+ * Can a new heat cycle be started for this animal?
+ * Uses the denormalized pregnancy_status field.
+ */
+export function canStartHeatCycle(animal: {
+  pregnancy_status?: string | null;
+}): boolean {
+  return animal.pregnancy_status !== "PREGNANT";
+}
+
+/**
+ * Can calving be recorded for this pregnancy?
+ * Only active (non-terminal) pregnancies can progress to calving.
+ */
+export function canRecordCalving(record: { status?: string | null }): boolean {
+  return isActivePregnancy(record);
+}
+
 export interface MinimalPregnancyRecord {
   insemination_date: string;
   pregnancy_confirmed?: boolean | null;
@@ -47,12 +131,20 @@ export function getGestationProgress(
   r: MinimalPregnancyRecord,
   now: Date = new Date(),
 ): GestationProgress {
-  const isDelivered = Boolean(r.actual_delivery_date);
+  // status is the source of truth — a record with status "Delivered" is done
+  // even if actual_delivery_date was not recorded (e.g. manual status edit).
+  const isDelivered = r.status === "Delivered";
   const inseminationDate = new Date(r.insemination_date);
   const expected = getExpectedDeliveryDate(r);
 
+  // When delivered, use actual_delivery_date for accurate gestation length display;
+  // fall back to expected date when the calving record hasn't set it yet.
+  const deliveredOn = r.actual_delivery_date
+    ? new Date(r.actual_delivery_date)
+    : expected;
+
   const rawDaysPregnant = isDelivered
-    ? diffDays(new Date(r.actual_delivery_date!), inseminationDate)
+    ? diffDays(deliveredOn, inseminationDate)
     : diffDays(now, inseminationDate);
   const daysPregnant = Math.max(0, rawDaysPregnant);
 
@@ -100,6 +192,7 @@ export function getPregnancyStatus(
   r: MinimalPregnancyRecord,
   now: Date = new Date(),
 ): PregnancyStatusDisplay {
+  // status is the single source of truth for all terminal and active states.
   if (r.status === "Failed") {
     return {
       key: "failed",
@@ -108,7 +201,7 @@ export function getPregnancyStatus(
       dot: "bg-red-400",
     };
   }
-  if (r.actual_delivery_date) {
+  if (r.status === "Delivered") {
     return {
       key: "delivered",
       label: "Delivered",
@@ -116,10 +209,12 @@ export function getPregnancyStatus(
       dot: "bg-emerald-400",
     };
   }
-  if (!r.pregnancy_confirmed) {
+  // Not yet confirmed — status is "Pending", "In Progress", null, or confirmed
+  // flag hasn't been set yet.
+  if (r.status !== "Confirmed") {
     return {
       key: "pending",
-      label: "Pending",
+      label: r.status ?? "Pending",
       cls: "bg-amber-500/15 text-amber-400",
       dot: "bg-amber-400",
     };

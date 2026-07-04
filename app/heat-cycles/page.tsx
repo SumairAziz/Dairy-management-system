@@ -29,6 +29,7 @@ import {
 } from "@/hooks";
 import type { HeatCycleRecord } from "@/types";
 import { AnimalCombobox } from "@/app/components/animal-combobox";
+import { isActivePregnancy } from "@/lib/pregnancy-status";
 
 const DEFAULT_CYCLE_DAYS = 21;
 
@@ -147,7 +148,7 @@ export default function HeatCyclesPage() {
     // Pending pregnancies do not block heat predictions or breeding.
     const activePregs = new Set<number>();
     for (const p of pregData?.data ?? []) {
-      if (!p.actual_delivery_date && p.pregnancy_confirmed === true && p.status !== "Failed") {
+      if (isActivePregnancy(p)) {
         activePregs.add(p.animal_id);
       }
     }

@@ -10,6 +10,7 @@ export const createFarmSchema = z.object({
   country: z.string().max(100).nullable().optional(),
   total_area_acres: z.number().positive().nullable().optional(),
   is_active: z.boolean().optional().default(true),
+  notes: z.string().nullable().optional(),
 });
 
 export const updateFarmSchema = z.object({
@@ -22,6 +23,7 @@ export const updateFarmSchema = z.object({
   country: z.string().max(100).nullable().optional(),
   total_area_acres: z.number().positive().nullable().optional(),
   is_active: z.boolean().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export const farmIdParamSchema = z.object({

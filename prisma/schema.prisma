@@ -7,28 +7,28 @@ datasource db {
 }
 
 model users {
-  user_id      Int       @id @default(autoincrement())
-  email        String    @unique @db.VarChar(255)
-  name         String    @db.VarChar(100)
-  password_hash String   @db.Text
-  role         String    @default("VIEWER") @db.VarChar(20)
-  is_active    Boolean   @default(true)
-  created_at   DateTime? @default(now()) @db.Timestamp(6)
-  updated_at   DateTime? @default(now()) @db.Timestamp(6)
-  audit_logs   audit_logs[]
+  user_id       Int             @id @default(autoincrement())
+  email         String          @unique @db.VarChar(255)
+  name          String          @db.VarChar(100)
+  password_hash String          @db.Text
+  role          String          @default("VIEWER") @db.VarChar(20)
+  is_active     Boolean         @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  audit_logs    audit_logs[]
   notifications notifications[]
 }
 
 model audit_logs {
-  id          Int       @id @default(autoincrement())
-  user_id     Int
-  entity      String    @db.VarChar(50)
-  entity_id   Int
-  action      String    @db.VarChar(20)
-  old_values  Json?
-  new_values  Json?
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  users       users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  entity     String    @db.VarChar(50)
+  entity_id  Int
+  action     String    @db.VarChar(20)
+  old_values Json?
+  new_values Json?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id], map: "idx_audit_logs_user_id")
   @@index([entity, entity_id], map: "idx_audit_logs_entity")
@@ -65,6 +65,11 @@ model animals {
   birth_weight_kg                                             Decimal?              @db.Decimal(6, 2)
   lifecycle_stage                                             String?               @default("Calf") @db.VarChar(20)
   is_active                                                   Boolean?              @default(true)
+  // Reproductive state — updated automatically by the pregnancy/calving workflow.
+  // NULL = not currently pregnant/lactating; "PREGNANT" / "CALVED" / "FAILED".
+  pregnancy_status                                            String?               @db.VarChar(20)
+  // "DRY" | "LACTATING" | NULL
+  lactation_status                                            String?               @db.VarChar(20)
   created_at                                                  DateTime?             @default(now()) @db.Timestamp(6)
   updated_at                                                  DateTime?             @default(now()) @db.Timestamp(6)
   breeds                                                      breeds                @relation(fields: [breed_id], references: [breed_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_animal_breed")
@@ -74,8 +79,10 @@ model animals {
   animals_animals_mother_idToanimals                          animals?              @relation("animals_mother_idToanimals", fields: [mother_id], references: [animal_id], onUpdate: NoAction, map: "fk_animal_mother")
   other_animals_animals_mother_idToanimals                    animals[]             @relation("animals_mother_idToanimals")
   units                                                       units?                @relation(fields: [unit_id], references: [unit_id], onUpdate: NoAction, map: "fk_animal_unit")
-  breeding_records_breeding_records_female_animal_idToanimals breeding_records[] @relation("breeding_records_female_animal_idToanimals")
-  breeding_records_breeding_records_male_animal_idToanimals   breeding_records[] @relation("breeding_records_male_animal_idToanimals")
+  breeding_records_breeding_records_female_animal_idToanimals breeding_records[]    @relation("breeding_records_female_animal_idToanimals")
+  breeding_records_breeding_records_male_animal_idToanimals   breeding_records[]    @relation("breeding_records_male_animal_idToanimals")
+  calving_records_as_mother                                   calving_records[]     @relation("calving_as_mother")
+  calving_records_as_calf                                     calving_records[]     @relation("calving_as_calf")
   growth_logs                                                 growth_logs[]
   health_incidents                                            health_incidents[]
   heat_cycle_records                                          heat_cycle_records[]
@@ -89,25 +96,28 @@ model animals {
   @@index([tag_number], map: "idx_animals_tag_number")
   @@index([lifecycle_stage], map: "idx_animals_lifecycle")
   @@index([is_active], map: "idx_animals_is_active")
+  @@index([pregnancy_status], map: "idx_animals_pregnancy_status")
 }
 
 model breeding_records {
-  breeding_id                                        Int       @id @default(autoincrement())
+  breeding_id                                        Int                   @id @default(autoincrement())
   female_animal_id                                   Int?
   male_animal_id                                     Int?
-  breeding_date                                      DateTime? @db.Date
-  method                                             String?   @db.VarChar(30)
-  result                                             String?   @db.VarChar(20)
+  breeding_date                                      DateTime?             @db.Date
+  method                                             String?               @db.VarChar(30)
+  result                                             String?               @db.VarChar(20)
   // Selected semen batch when method = "Artificial Insemination". Stored as
   // a free-form identifier for now since there's no Inventory/Veterinary
   // module yet to back it with a real semen_inventory table + FK; the
   // application layer currently sources options from mock data
   // (see lib/mock-semen-inventory.ts) and just persists the chosen id/label
   // here. Swap this for a proper relation once that module exists.
-  semen_batch_id                                     String?   @db.VarChar(50)
-  notes                                               String?
-  animals_breeding_records_female_animal_idToanimals animals?  @relation("breeding_records_female_animal_idToanimals", fields: [female_animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
-  animals_breeding_records_male_animal_idToanimals   animals?  @relation("breeding_records_male_animal_idToanimals", fields: [male_animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
+  semen_batch_id                                     String?               @db.VarChar(50)
+  notes                                              String?
+  animals_breeding_records_female_animal_idToanimals animals?              @relation("breeding_records_female_animal_idToanimals", fields: [female_animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
+  animals_breeding_records_male_animal_idToanimals   animals?              @relation("breeding_records_male_animal_idToanimals", fields: [male_animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
+  pregnancy_records                                  pregnancy_records[]
+  vaccination_records                                vaccination_records[]
 }
 
 model breeds {
@@ -126,6 +136,29 @@ model breeds {
   @@unique([species_id, breed_name], map: "unique_breed_per_species")
 }
 
+model calving_records {
+  calving_id        Int                @id @default(autoincrement())
+  mother_id         Int
+  pregnancy_id      Int?
+  calving_date      DateTime           @db.Date
+  // "Live Birth" | "Stillbirth" | "Complications" | "Twins"
+  outcome           String?            @db.VarChar(30)
+  calf_gender       String?            @db.Char(1)
+  // Free-form tag for the new calf (used before the calf is registered as an animal)
+  calf_tag          String?            @db.VarChar(50)
+  // FK to the registered calf animal record, if created
+  calf_id           Int?
+  notes             String?
+  created_at        DateTime?          @default(now()) @db.Timestamp(6)
+  mother            animals            @relation("calving_as_mother", fields: [mother_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction)
+  calf              animals?           @relation("calving_as_calf", fields: [calf_id], references: [animal_id], onDelete: SetNull, onUpdate: NoAction)
+  pregnancy_records pregnancy_records? @relation(fields: [pregnancy_id], references: [pregnancy_id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([mother_id], map: "idx_calving_records_mother_id")
+  @@index([calving_date], map: "idx_calving_records_date")
+  @@index([pregnancy_id], map: "idx_calving_records_pregnancy_id")
+}
+
 model farms {
   farm_id          Int       @id @default(autoincrement())
   farm_name        String    @db.VarChar(100)
@@ -137,6 +170,7 @@ model farms {
   country          String?   @db.VarChar(100)
   total_area_acres Decimal?  @default(0.00) @db.Decimal(10, 2)
   is_active        Boolean?  @default(true)
+  notes            String?
   created_at       DateTime? @default(now()) @db.Timestamp(6)
   updated_at       DateTime? @default(now()) @db.Timestamp(6)
   animals          animals[]
@@ -204,18 +238,24 @@ model milk_logs {
 }
 
 model pregnancy_records {
-  pregnancy_id           Int       @id @default(autoincrement())
+  pregnancy_id           Int               @id @default(autoincrement())
   animal_id              Int
-  insemination_date      DateTime  @db.Date
-  pregnancy_confirmed    Boolean?  @default(false)
-  confirmation_date      DateTime? @db.Date
-  expected_delivery_date DateTime? @db.Date
-  actual_delivery_date   DateTime? @db.Date
-  status                 String?   @default("Pending") @db.VarChar(20)
-  created_at             DateTime? @default(now()) @db.Timestamp(6)
-  animals                animals   @relation(fields: [animal_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pregnancy_animal")
+  // Optional link to the breeding event that led to this pregnancy.
+  breeding_id            Int?
+  insemination_date      DateTime          @db.Date
+  pregnancy_confirmed    Boolean?          @default(false)
+  confirmation_date      DateTime?         @db.Date
+  expected_delivery_date DateTime?         @db.Date
+  actual_delivery_date   DateTime?         @db.Date
+  status                 String?           @default("Pending") @db.VarChar(20)
+  created_at             DateTime?         @default(now()) @db.Timestamp(6)
+  animals                animals           @relation(fields: [animal_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pregnancy_animal")
+  breeding_records       breeding_records? @relation(fields: [breeding_id], references: [breeding_id], onDelete: SetNull, onUpdate: NoAction)
+  calving_records        calving_records[]
+  vaccination_records    vaccination_records[]
 
   @@index([animal_id], map: "idx_pregnancy_records_animal_id")
+  @@index([breeding_id], map: "idx_pregnancy_records_breeding_id")
   @@index([status], map: "idx_pregnancy_records_status")
 }
 
@@ -247,6 +287,7 @@ model units {
   unit_type   String    @db.VarChar(50)
   capacity    Int?      @default(0)
   description String?
+  notes       String?
   is_active   Boolean?  @default(true)
   created_at  DateTime? @default(now()) @db.Timestamp(6)
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
@@ -255,15 +296,23 @@ model units {
 }
 
 model vaccination_records {
-  vaccination_id   Int       @id @default(autoincrement())
-  animal_id        Int?
-  vaccine_name     String?   @db.VarChar(100)
-  vaccination_date DateTime? @db.Date
-  next_due_date    DateTime? @db.Date
-  administered_by  String?   @db.VarChar(100)
-  notes            String?
-  animals          animals?  @relation(fields: [animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
+  vaccination_id    Int                @id @default(autoincrement())
+  animal_id         Int?
+  vaccine_name      String?            @db.VarChar(100)
+  vaccination_date  DateTime?          @db.Date
+  next_due_date     DateTime?          @db.Date
+  administered_by   String?            @db.VarChar(100)
+  notes             String?
+  // "pregnancy_workflow" for pregnancy-triggered reminders; "breeding_workflow" for post-breeding check reminders.
+  source            String?            @db.VarChar(50)
+  pregnancy_id      Int?
+  breeding_id       Int?
+  animals           animals?           @relation(fields: [animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
+  pregnancy_records pregnancy_records? @relation(fields: [pregnancy_id], references: [pregnancy_id], onDelete: SetNull, onUpdate: NoAction)
+  breeding_records  breeding_records?  @relation(fields: [breeding_id], references: [breeding_id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([animal_id], map: "idx_vaccination_records_animal_id")
   @@index([next_due_date], map: "idx_vaccination_records_next_due")
+  @@index([pregnancy_id], map: "idx_vaccination_records_pregnancy_id")
+  @@index([breeding_id], map: "idx_vaccination_records_breeding_id")
 }

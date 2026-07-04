@@ -13,3 +13,4 @@ export * from "./use-heat-cycles";
 export * from "./use-pregnancy";
 export * from "./use-notifications";
 export * from "./use-dashboard";
+export * from "./use-calving";

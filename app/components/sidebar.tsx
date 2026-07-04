@@ -12,6 +12,7 @@ import {
   Heart,
   Flame,
   Baby,
+  Star,
 } from "lucide-react";
 
 const AUTH_PATHS = ["/login", "/register"];
@@ -27,6 +28,7 @@ const links = [
   { href: "/breeding", label: "Breeding", icon: Heart },
   { href: "/heat-cycles", label: "Heat Cycles", icon: Flame },
   { href: "/pregnancy", label: "Pregnancy", icon: Baby },
+  { href: "/calving", label: "Calving", icon: Star },
 ];
 
 export function Sidebar() {

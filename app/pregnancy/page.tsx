@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
@@ -73,6 +74,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function PregnancyPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] =
     useState<(typeof PREGNANCY_STATUS_FILTERS)[number]["key"]>("all");
   const [confirmedFilter, setConfirmedFilter] = useState(""); // "" | "yes" | "no"
@@ -150,11 +152,13 @@ export default function PregnancyPage() {
   // ── Dashboard summary (six cards, all computed from existing fields) ──
   const dashboard = useMemo(() => {
     const total = withComputed.length;
+    // "Confirmed" = status is exactly "Confirmed" (not Delivered, Failed, Pending)
     const confirmed = withComputed.filter(
-      (w) => w.record.pregnancy_confirmed === true,
+      (w) => w.record.status === "Confirmed",
     ).length;
+    // "Pending Confirmation" = any non-terminal, non-confirmed status
     const pendingConfirmation = withComputed.filter(
-      (w) => !w.record.pregnancy_confirmed,
+      (w) => w.record.status !== "Confirmed" && w.record.status !== "Delivered" && w.record.status !== "Failed",
     ).length;
     const dueThisMonth = withComputed.filter((w) => {
       if (w.progress.isDelivered) return false;
@@ -168,8 +172,9 @@ export default function PregnancyPage() {
       );
     }).length;
     const overdue = withComputed.filter((w) => w.progress.isOverdue).length;
+    // Active pregnancies = status is not Delivered or Failed
     const activePregnancies = withComputed.filter(
-      (w) => w.record.pregnancy_confirmed === true && !w.progress.isDelivered,
+      (w) => w.record.status !== "Delivered" && w.record.status !== "Failed",
     );
     const avgGestationPercent = activePregnancies.length
       ? Math.round(
@@ -618,6 +623,19 @@ export default function PregnancyPage() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
+                        {r.actual_delivery_date && (
+                          <button
+                            onClick={() =>
+                              router.push(
+                                `/animals?newborn=1&mother_id=${r.animal_id}&birth_date=${r.actual_delivery_date!.slice(0, 10)}`,
+                              )
+                            }
+                            className="p-1.5 rounded hover:bg-emerald-500/10 text-emerald-400"
+                            title="Register newborn animal"
+                          >
+                            <Baby size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(r)}
                           className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10"
@@ -684,6 +702,23 @@ export default function PregnancyPage() {
         }
         footer={
           <>
+            {editId !== null && form.actual_delivery_date && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setEditId(null);
+                  setDeliveryDateNote(null);
+                  router.push(
+                    `/animals?newborn=1&mother_id=${form.animal_id}&birth_date=${String(form.actual_delivery_date)}`,
+                  );
+                }}
+                className="mr-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm transition-colors"
+              >
+                <Baby size={14} />
+                Register Newborn
+              </button>
+            )}
             <button
               onClick={() => {
                 setOpen(false);

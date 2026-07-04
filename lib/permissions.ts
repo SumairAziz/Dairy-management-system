@@ -16,6 +16,7 @@ const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
     species: ["create", "read", "update", "delete"],
     breeds: ["create", "read", "update", "delete"],
     pregnancy: ["create", "read", "update", "delete"],
+    calving: ["create", "read", "update", "delete"],
   },
   MANAGER: {
     animals: ["create", "read", "update", "delete"],
@@ -30,6 +31,7 @@ const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
     species: ["create", "read", "update", "delete"],
     breeds: ["create", "read", "update", "delete"],
     pregnancy: ["create", "read", "update", "delete"],
+    calving: ["create", "read", "update", "delete"],
   },
   VETERINARIAN: {
     animals: ["read"],
@@ -44,6 +46,7 @@ const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
     species: ["read"],
     breeds: ["read"],
     pregnancy: ["create", "read", "update", "delete"],
+    calving: ["create", "read", "update", "delete"],
   },
   WORKER: {
     animals: ["read"],
@@ -58,6 +61,7 @@ const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
     species: ["read"],
     breeds: ["read"],
     pregnancy: ["read"],
+    calving: ["read"],
   },
   VIEWER: {
     animals: ["read"],
@@ -72,6 +76,7 @@ const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
     species: ["read"],
     breeds: ["read"],
     pregnancy: ["read"],
+    calving: ["read"],
   },
 };
 

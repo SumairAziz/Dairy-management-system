@@ -13,7 +13,7 @@ import {
   getAnimalVaccinationStatus,
   animalStatusStyle,
 } from "@/lib/vaccination-status";
-import { getPregnancyStatus } from "@/lib/pregnancy-status";
+import { getPregnancyStatus, isActivePregnancy } from "@/lib/pregnancy-status";
 import { useNow } from "@/lib/use-now";
 
 interface Props {
@@ -53,10 +53,7 @@ function useAnimalPregnancy(animalId: number, now: Date) {
       new Date(a.insemination_date).getTime(),
   );
   const latest = byDate[0] ?? null;
-  // Active = not yet delivered and not failed
-  const active =
-    byDate.find((p) => !p.actual_delivery_date && p.status !== "Failed") ??
-    null;
+  const active = byDate.find((p) => isActivePregnancy(p)) ?? null;
   const lastDelivered =
     [...records]
       .filter((p) => Boolean(p.actual_delivery_date))

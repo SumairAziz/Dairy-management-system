@@ -6,6 +6,7 @@ export const createUnitSchema = z.object({
   unit_type: z.string().min(1, "Unit type is required").max(50),
   capacity: z.number().int().min(1).nullable().optional(),
   description: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
   is_active: z.boolean().optional().default(true),
 });
 
@@ -15,6 +16,7 @@ export const updateUnitSchema = z.object({
   unit_type: z.string().min(1).max(50).optional(),
   capacity: z.number().int().min(1).nullable().optional(),
   description: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
 });
 

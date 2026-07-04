@@ -21,6 +21,7 @@ import {
 } from "@/hooks";
 import type { Animal } from "@/types";
 import type { UpdateUnitInput } from "@/validators/units.validator";
+import { isCompletedPregnancy } from "@/lib/pregnancy-status";
 
 // ─── Filter state shape ───────────────────────────────────────────────────────
 const HEALTH_OPTIONS = ["Open", "In Progress", "Resolved", "Critical"];
@@ -205,6 +206,7 @@ export default function UnitsPage() {
     unit_type: "Barn",
     capacity: "50",
     description: "",
+    notes: "",
     farm_id: "",
   });
 
@@ -247,7 +249,7 @@ export default function UnitsPage() {
   function pregnancyStatus(a: Animal) {
     const rec = a.pregnancy_records?.[0];
     if (!rec) return "Not Pregnant";
-    return rec.status === "Delivered" ? "Not Pregnant" : "Pregnant";
+    return isCompletedPregnancy(rec.status) ? "Not Pregnant" : "Pregnant";
   }
   function heatStatus(a: Animal) {
     const rec = a.heat_cycle_records?.[0];
@@ -322,6 +324,7 @@ export default function UnitsPage() {
         unit_type: form.unit_type,
         capacity: form.capacity ? Number(form.capacity) : 0,
         description: form.description || null,
+        notes: form.notes || null,
         is_active: true,
       },
       {
@@ -332,6 +335,7 @@ export default function UnitsPage() {
             unit_type: "Barn",
             capacity: "50",
             description: "",
+            notes: "",
             farm_id: "",
           });
         },
@@ -518,6 +522,17 @@ export default function UnitsPage() {
                   }
                 />
               </Field>
+              <div className="col-span-2">
+                <Field label="Notes">
+                  <textarea
+                    className={inputCls}
+                    rows={3}
+                    defaultValue={detail.unit.notes ?? ""}
+                    placeholder="Location details, management instructions, or other remarks…"
+                    onBlur={(e) => update({ notes: e.target.value || null })}
+                  />
+                </Field>
+              </div>
             </div>
 
             {/* Stats row (restored capacity gauge + lifecycle pie + daily milk) */}
@@ -545,6 +560,12 @@ export default function UnitsPage() {
                       {detail.unit.description || "—"}
                     </div>
                   </div>
+                  {detail.unit.notes && (
+                    <div className="col-span-2 mt-2 pt-2 border-t border-black/5 dark:border-white/10">
+                      <div className="muted text-xs uppercase tracking-wider mb-0.5">Notes</div>
+                      <div className="text-sm whitespace-pre-wrap">{detail.unit.notes}</div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="surface border rounded-2xl p-5">
@@ -826,11 +847,22 @@ export default function UnitsPage() {
             <Field label="Feed schedule">
               <textarea
                 className={inputCls}
-                rows={3}
+                rows={2}
                 value={form.description}
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
                 }
+              />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Notes">
+              <textarea
+                className={inputCls}
+                rows={2}
+                value={form.notes}
+                placeholder="Location details, management instructions, or other remarks…"
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </Field>
           </div>

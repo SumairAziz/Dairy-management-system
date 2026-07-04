@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
+import {
+  ACTIVE_PREGNANCY_STATUSES,
+  TERMINAL_PREGNANCY_STATUSES,
+} from "@/lib/pregnancy-status";
 
 export async function getDashboardData() {
   const [
@@ -22,6 +26,9 @@ export async function getDashboardData() {
     lifecycleDist,
     upcomingVaccinations,
     farmCapacity,
+    overdueVaccinations,
+    animalsInHeat,
+    upcomingDeliveries,
   ] = await Promise.all([
     // --- Existing queries ---
     prisma.animals.count({ where: { is_active: true } }),
@@ -32,7 +39,10 @@ export async function getDashboardData() {
     prisma.milk_logs.aggregate({ _sum: { milk_liters: true } }),
     prisma.health_incidents.groupBy({ by: ["status"], _count: true }),
     prisma.vaccination_records.groupBy({ by: ["vaccine_name"], _count: true }),
-    prisma.pregnancy_records.count({ where: { status: "Pregnant" } }),
+    // Current pregnant animals = any active status (Pending + Confirmed + In Progress)
+    prisma.pregnancy_records.count({
+      where: { status: { in: [...ACTIVE_PREGNANCY_STATUSES] } },
+    }),
     prisma.animals.findMany({
       take: 8,
       orderBy: { created_at: "desc" },
@@ -110,6 +120,27 @@ export async function getDashboardData() {
       GROUP BY f.farm_id, f.farm_name
       ORDER BY f.farm_name
       LIMIT 10`,
+
+    // --- NEW: Overdue vaccinations (past due date) ---
+    prisma.vaccination_records.count({
+      where: { next_due_date: { lt: new Date() } },
+    }),
+
+    // --- NEW: Animals currently in active heat ---
+    prisma.heat_cycle_records.count({
+      where: { heat_end_date: null, heat_start_date: { not: null } },
+    }),
+
+    // --- NEW: Deliveries expected in next 30 days (confirmed pregnancies only) ---
+    prisma.pregnancy_records.count({
+      where: {
+        expected_delivery_date: {
+          gte: new Date(),
+          lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+        status: { notIn: [...TERMINAL_PREGNANCY_STATUSES] },
+      },
+    }),
   ]);
 
   return serialize({
@@ -165,6 +196,9 @@ export async function getDashboardData() {
       value: g._count,
     })),
     upcomingVaccinations,
+    overdueVaccinations,
+    animalsInHeat,
+    upcomingDeliveries,
     farmCapacity: (
       farmCapacity as Array<{
         farm_id: number;

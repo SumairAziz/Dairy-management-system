@@ -1,11 +1,98 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useState, useEffect } from "react";
+import type { ReactNode } from "react";
 
-const PALETTE = ["#0d9488","#14b8a6","#2dd4bf","#5eead4","#0891b2","#6366f1","#a855f7","#ec4899","#f59e0b","#84cc16"];
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const PALETTE = [
+  "#0d9488", "#14b8a6", "#2dd4bf", "#5eead4",
+  "#0891b2", "#6366f1", "#a855f7", "#ec4899",
+  "#f59e0b", "#84cc16",
+];
 
-export function MetricCard({ label, value, hint, icon }: { label: string; value: React.ReactNode; hint?: string; icon?: React.ReactNode }) {
+const STATUS_COLORS: Record<string, string> = {
+  Healthy: "#10b981", Recovering: "#f59e0b",
+  "Under Treatment": "#f59e0b", Sick: "#ef4444",
+  Critical: "#ef4444", Injured: "#ef4444",
+  Monitored: "#6366f1", Deceased: "#6b7280",
+  Pending: "#f59e0b", Confirmed: "#3b82f6",
+  "In Progress": "#8b5cf6", Pregnant: "#ec4899",
+  Delivered: "#10b981", Failed: "#ef4444",
+  Success: "#10b981", Open: "#f59e0b", Closed: "#10b981",
+};
+
+export function chartColor(index: number): string { return PALETTE[index % PALETTE.length]; }
+export function statusColor(label: string): string { return STATUS_COLORS[label] || PALETTE[0]; }
+
+// ─── Shared hooks ─────────────────────────────────────────────────────────────
+function useMounted(delay = 80) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setMounted(true), delay);
+    return () => clearTimeout(id);
+  }, [delay]);
+  return mounted;
+}
+
+// ─── SVG helpers ──────────────────────────────────────────────────────────────
+function roundedTopPath(x: number, y: number, w: number, h: number, r: number): string {
+  if (h <= 0) return "";
+  const s = Math.min(r, h, w / 2);
+  return `M${x},${y + h} L${x},${y + s} Q${x},${y} ${x + s},${y} L${x + w - s},${y} Q${x + w},${y} ${x + w},${y + s} L${x + w},${y + h} Z`;
+}
+
+function catmullRom(pts: { x: number; y: number }[]): string {
+  if (!pts.length) return "";
+  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+export function EmptyState({
+  message = "No data available yet",
+  hint = "Records will appear here once added.",
+}: {
+  message?: string;
+  hint?: string;
+}) {
   return (
-    <div className="surface border rounded-2xl p-5 flex flex-col gap-2">
+    <div className="flex flex-col items-center justify-center py-12 gap-3 select-none">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" className="opacity-20">
+        <rect x="5" y="24" width="7" height="15" rx="2" fill="currentColor" />
+        <rect x="16" y="16" width="7" height="23" rx="2" fill="currentColor" />
+        <rect x="27" y="8" width="7" height="31" rx="2" fill="currentColor" />
+        <line x1="3" y1="41" x2="41" y2="41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      <div className="text-center space-y-1">
+        <p className="text-sm font-medium opacity-40">{message}</p>
+        <p className="text-xs opacity-25">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── MetricCard ───────────────────────────────────────────────────────────────
+export function MetricCard({
+  label, value, hint, icon,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="surface border rounded-2xl p-5 flex flex-col gap-2 hover:border-white/20 dark:hover:border-white/15 transition-colors duration-200">
       <div className="flex items-center justify-between">
         <span className="text-xs uppercase tracking-wider muted">{label}</span>
         {icon}
@@ -16,69 +103,456 @@ export function MetricCard({ label, value, hint, icon }: { label: string; value:
   );
 }
 
-export function BarChart({ data, height = 220 }: { data: { label: string; value: number }[]; height?: number }) {
+// ─── BarChart ─────────────────────────────────────────────────────────────────
+export function BarChart({
+  data,
+  height = 220,
+}: {
+  data: { label: string; value: number }[];
+  height?: number;
+}) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...data.map(d => d.value));
-  const w = 600; const padL = 36; const padB = 30; const padT = 10;
-  const innerW = w - padL - 10; const innerH = height - padB - padT;
-  const bw = data.length ? innerW / data.length : 0;
+  const mounted = useMounted(100);
+
+  if (!data.length) return <EmptyState />;
+
+  const w = 600;
+  const padL = 46; const padB = 38; const padT = 28; const padR = 14;
+  const innerW = w - padL - padR;
+  const innerH = height - padB - padT;
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const bw = innerW / data.length;
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    y: padT + innerH * (1 - t),
+    val: Math.round(max * t),
+  }));
+
+  let ttX = 0, ttY = 0;
+  const ttW = 96, ttH = 52;
+  if (hover !== null) {
+    const bh = (data[hover].value / max) * innerH;
+    const cx = padL + hover * bw + bw * 0.5;
+    ttX = Math.max(padL, Math.min(cx - ttW / 2, w - ttW - padR));
+    ttY = padT + innerH - bh - ttH - 10;
+    if (ttY < padT) ttY = padT + innerH - bh + 8;
+  }
+
   return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full h-auto">
-      {[0,0.25,0.5,0.75,1].map((t,i)=>{
-        const y = padT + innerH*(1-t);
-        return <g key={i}>
-          <line x1={padL} x2={w-10} y1={y} y2={y} stroke="currentColor" opacity="0.08"/>
-          <text x={padL-6} y={y+3} textAnchor="end" fontSize="9" fill="currentColor" opacity="0.5">{Math.round(max*t)}</text>
-        </g>;
-      })}
-      {data.map((d,i)=>{
-        const bh = (d.value/max)*innerH;
-        const x = padL + i*bw + bw*0.15;
+    <svg
+      viewBox={`0 0 ${w} ${height}`}
+      className="w-full h-auto"
+      onMouseLeave={() => setHover(null)}
+    >
+      {/* Grid lines */}
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line
+            x1={padL} x2={w - padR} y1={t.y} y2={t.y}
+            stroke="currentColor"
+            opacity={i === 0 ? 0.18 : 0.06}
+            strokeDasharray={i === 0 ? "" : "4,5"}
+          />
+          <text
+            x={padL - 8} y={t.y + 4}
+            textAnchor="end" fontSize="9" fill="currentColor" opacity="0.4"
+          >
+            {t.val}
+          </text>
+        </g>
+      ))}
+
+      {/* Bars */}
+      {data.map((d, i) => {
+        const bh = (d.value / max) * innerH;
+        const x = padL + i * bw + bw * 0.18;
         const y = padT + innerH - bh;
-        const bwActual = bw*0.7;
+        const bwActual = bw * 0.64;
+        const isHov = hover === i;
+        const col = PALETTE[i % PALETTE.length];
+
         return (
-          <g key={i} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)}>
-            <rect x={x} y={y} width={bwActual} height={bh} rx="4" fill={PALETTE[i%PALETTE.length]} opacity={hover===null||hover===i?1:0.5}/>
-            <text x={x+bwActual/2} y={height-12} textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.7">{d.label.slice(0,12)}</text>
-            {hover===i && <text x={x+bwActual/2} y={y-4} textAnchor="middle" fontSize="11" fill="currentColor" fontWeight="600">{d.value}</text>}
+          <g key={i} onMouseEnter={() => setHover(i)} style={{ cursor: "pointer" }}>
+            {/* Bar */}
+            <path
+              d={roundedTopPath(x, y, bwActual, bh, 5)}
+              fill={col}
+              opacity={!mounted ? 0 : hover === null || isHov ? 1 : 0.38}
+              style={{ transition: `opacity 0.4s ease ${i * 0.04}s` }}
+            />
+            {/* Hover glow */}
+            {isHov && (
+              <path
+                d={roundedTopPath(x - 1, y - 1, bwActual + 2, bh + 1, 5)}
+                fill="none"
+                stroke={col}
+                strokeWidth="1"
+                opacity="0.4"
+              />
+            )}
+            {/* Value label */}
+            <text
+              x={x + bwActual / 2} y={y - 6}
+              textAnchor="middle" fontSize="10.5" fill="currentColor"
+              fontWeight={isHov ? "700" : "500"}
+              opacity={mounted ? (hover === null ? 0.55 : isHov ? 1 : 0.2) : 0}
+              style={{ transition: "opacity 0.18s ease" }}
+            >
+              {d.value}
+            </text>
+            {/* X label */}
+            <text
+              x={x + bwActual / 2} y={height - 10}
+              textAnchor="middle" fontSize="9.5" fill="currentColor"
+              opacity={isHov ? 0.85 : 0.45}
+              style={{ transition: "opacity 0.15s" }}
+            >
+              {d.label.length > 11 ? d.label.slice(0, 11) + "…" : d.label}
+            </text>
           </g>
         );
       })}
+
+      {/* Tooltip */}
+      {hover !== null && (
+        <g style={{ pointerEvents: "none" }}>
+          <rect
+            x={ttX} y={ttY} width={ttW} height={ttH} rx="8"
+            fill="rgba(6,12,22,0.95)" stroke="rgba(255,255,255,0.12)" strokeWidth="1"
+          />
+          <text x={ttX + 11} y={ttY + 18} fontSize="9.5" fill="rgba(255,255,255,0.45)">
+            {data[hover].label.length > 11 ? data[hover].label.slice(0, 11) + "…" : data[hover].label}
+          </text>
+          <text x={ttX + 11} y={ttY + 40} fontSize="18" fill="white" fontWeight="700">
+            {data[hover].value}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
 
-export function PieChart({ data, size = 200 }: { data: { label: string; value: number }[]; size?: number }) {
-  const total = Math.max(1, data.reduce((s,d)=>s+d.value,0));
-  const r = size/2 - 8; const cx = size/2; const cy = size/2;
-  let acc = 0;
-  const [hover, setHover] = useState<number | null>(null);
+// ─── LineChart ────────────────────────────────────────────────────────────────
+export function LineChart({
+  data,
+  height = 220,
+  yLabel,
+}: {
+  data: { label: string; value: number }[];
+  height?: number;
+  yLabel?: string;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const mounted = useMounted(120);
   const id = useId();
-  const arcs = data.map((d,i)=>{
-    const start = acc/total * Math.PI*2; acc += d.value;
-    const end = acc/total * Math.PI*2;
-    const large = end-start > Math.PI ? 1 : 0;
-    const x1 = cx + r*Math.sin(start); const y1 = cy - r*Math.cos(start);
-    const x2 = cx + r*Math.sin(end);   const y2 = cy - r*Math.cos(end);
-    return { d: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`, color: PALETTE[i%PALETTE.length], label: d.label, value: d.value, pct: (d.value/total)*100 };
-  });
+
+  if (!data.length) return <EmptyState />;
+
+  const w = 600;
+  const padL = 54; const padB = 34; const padT = 18; const padR = 18;
+  const innerW = w - padL - padR;
+  const innerH = height - padB - padT;
+  const max = Math.max(...data.map((d) => d.value), 1);
+  const range = max || 1;
+
+  const pts = data.map((d, i) => ({
+    x: padL + (i / Math.max(1, data.length - 1)) * innerW,
+    y: padT + innerH - (d.value / range) * innerH,
+    ...d,
+  }));
+
+  const linePath = catmullRom(pts);
+  const areaPath =
+    pts.length > 0
+      ? `${linePath} L${pts.at(-1)!.x},${padT + innerH} L${pts[0].x},${padT + innerH} Z`
+      : "";
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    y: padT + innerH * (1 - t),
+    val: Math.round(max * t),
+  }));
+
+  const xStep = Math.max(1, Math.ceil(data.length / 7));
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * w;
+    let nearest = 0;
+    let minDist = Infinity;
+    pts.forEach((p, i) => {
+      const dist = Math.abs(p.x - mouseX);
+      if (dist < minDist) { minDist = dist; nearest = i; }
+    });
+    setHoverIdx(nearest);
+  }
+
+  const hovPt = hoverIdx !== null ? pts[hoverIdx] : null;
+  const ttW = 118; const ttH = 60;
+
   return (
-    <div className="flex items-center gap-4">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {arcs.map((a,i)=>(
-          <path key={i} d={a.d} fill={a.color} opacity={hover===null||hover===i?1:0.4}
-            onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)}/>
+    <svg
+      viewBox={`0 0 ${w} ${height}`}
+      className="w-full h-auto"
+      style={{ cursor: "crosshair" }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      <defs>
+        <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.28" />
+          <stop offset="80%" stopColor="#14b8a6" stopOpacity="0.02" />
+          <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={`${id}-line`} x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="#0d9488" />
+          <stop offset="100%" stopColor="#2dd4bf" />
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line
+            x1={padL} x2={w - padR} y1={t.y} y2={t.y}
+            stroke="currentColor"
+            opacity={i === 0 ? 0.16 : 0.06}
+            strokeDasharray={i === 0 ? "" : "4,5"}
+          />
+          <text
+            x={padL - 9} y={t.y + 4}
+            textAnchor="end" fontSize="9" fill="currentColor" opacity="0.4"
+          >
+            {t.val}{i === yTicks.length - 1 && yLabel ? ` ${yLabel}` : ""}
+          </text>
+        </g>
+      ))}
+
+      {/* X axis baseline */}
+      <line
+        x1={padL} x2={w - padR} y1={padT + innerH} y2={padT + innerH}
+        stroke="currentColor" opacity="0.14"
+      />
+
+      {/* Area fill */}
+      <path
+        d={areaPath}
+        fill={`url(#${id}-fill)`}
+        style={{ opacity: mounted ? 1 : 0, transition: "opacity 0.9s ease 0.5s" }}
+      />
+
+      {/* Animated line */}
+      <path
+        d={linePath}
+        fill="none"
+        stroke={`url(#${id}-line)`}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength="1"
+        strokeDasharray="1"
+        strokeDashoffset={mounted ? 0 : 1}
+        style={{ transition: "stroke-dashoffset 1.4s cubic-bezier(0.4, 0, 0.2, 1)" }}
+      />
+
+      {/* X-axis labels */}
+      {pts.map((p, i) =>
+        i % xStep === 0 ? (
+          <text
+            key={`xl${i}`}
+            x={p.x} y={height - 9}
+            textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.4"
+          >
+            {p.label}
+          </text>
+        ) : null,
+      )}
+
+      {/* Data point dots */}
+      {pts.map((p, i) => (
+        <circle
+          key={`dot${i}`}
+          cx={p.x} cy={p.y}
+          r={hoverIdx === i ? 5.5 : 3}
+          fill={hoverIdx === i ? "#14b8a6" : "rgb(var(--surface, 15 23 42))"}
+          stroke={hoverIdx === i ? "#2dd4bf" : "#0d9488"}
+          strokeWidth={hoverIdx === i ? 2.5 : 1.5}
+          style={{
+            opacity: mounted ? 1 : 0,
+            transition: "r 0.15s ease, stroke-width 0.15s ease, fill 0.15s ease",
+          }}
+        />
+      ))}
+
+      {/* Crosshair + tooltip */}
+      {hovPt && (() => {
+        const tx = Math.min(hovPt.x + 14, w - ttW - padR);
+        const ty = Math.max(hovPt.y - ttH - 12, padT);
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            {/* Vertical crosshair */}
+            <line
+              x1={hovPt.x} y1={padT} x2={hovPt.x} y2={padT + innerH}
+              stroke="#14b8a6" strokeWidth="1" strokeDasharray="4,3" opacity="0.35"
+            />
+            {/* Tooltip */}
+            <rect
+              x={tx} y={ty} width={ttW} height={ttH} rx="9"
+              fill="rgba(6,12,22,0.96)" stroke="rgba(255,255,255,0.11)" strokeWidth="1"
+            />
+            <text x={tx + 12} y={ty + 19} fontSize="9.5" fill="rgba(255,255,255,0.45)" letterSpacing="0.3">
+              {hovPt.label}
+            </text>
+            <text x={tx + 12} y={ty + 45} fontSize="19" fill="white" fontWeight="700">
+              <tspan>{hovPt.value.toFixed(1)}</tspan>
+              {yLabel && (
+                <tspan fontSize="11" fontWeight="400" fill="rgba(255,255,255,0.45)"> {yLabel}</tspan>
+              )}
+            </text>
+          </g>
+        );
+      })()}
+    </svg>
+  );
+}
+
+// ─── PieChart (donut) ─────────────────────────────────────────────────────────
+export function PieChart({
+  data,
+  size = 200,
+}: {
+  data: { label: string; value: number }[];
+  size?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const mounted = useMounted(80);
+
+  if (!data.length) return <EmptyState />;
+
+  const total = Math.max(1, data.reduce((s, d) => s + d.value, 0));
+  const r = size / 2 - 10;
+  const innerR = r * 0.56;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  let acc = 0;
+  const arcs = data.map((d, i) => {
+    const startAngle = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    acc += d.value;
+    const endAngle = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    const large = endAngle - startAngle > Math.PI ? 1 : 0;
+    const midAngle = (startAngle + endAngle) / 2;
+    const outset = hover === i ? 7 : 0;
+    const dx = Math.cos(midAngle) * outset;
+    const dy = Math.sin(midAngle) * outset;
+
+    const ox1 = cx + r * Math.cos(startAngle) + dx;
+    const oy1 = cy + r * Math.sin(startAngle) + dy;
+    const ox2 = cx + r * Math.cos(endAngle) + dx;
+    const oy2 = cy + r * Math.sin(endAngle) + dy;
+    const ix1 = cx + innerR * Math.cos(startAngle) + dx;
+    const iy1 = cy + innerR * Math.sin(startAngle) + dy;
+    const ix2 = cx + innerR * Math.cos(endAngle) + dx;
+    const iy2 = cy + innerR * Math.sin(endAngle) + dy;
+
+    // Outer arc CW → inner edge → inner arc CCW → close
+    const path = `M${ox1},${oy1} A${r},${r} 0 ${large} 1 ${ox2},${oy2} L${ix2},${iy2} A${innerR},${innerR} 0 ${large} 0 ${ix1},${iy1} Z`;
+
+    return {
+      path,
+      color: PALETTE[i % PALETTE.length],
+      label: d.label,
+      value: d.value,
+      pct: (d.value / total) * 100,
+    };
+  });
+
+  const hov = hover !== null ? arcs[hover] : null;
+
+  return (
+    <div className="flex items-center gap-5">
+      <svg
+        width={size} height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="shrink-0"
+      >
+        {arcs.map((a, i) => (
+          <path
+            key={i}
+            d={a.path}
+            fill={a.color}
+            opacity={!mounted ? 0 : hover === null || hover === i ? 1 : 0.3}
+            style={{
+              transition: `opacity 0.18s ease, transform 0.2s ease`,
+              cursor: "pointer",
+            }}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          />
         ))}
-        <circle cx={cx} cy={cy} r={r*0.55} fill="rgb(var(--surface))"/>
-        <text x={cx} y={cy-2} textAnchor="middle" fontSize="11" fill="currentColor" opacity="0.6">{hover!==null?arcs[hover].label:"Total"}</text>
-        <text x={cx} y={cy+14} textAnchor="middle" fontSize="16" fill="currentColor" fontWeight="600">{hover!==null?arcs[hover].value:total}</text>
+
+        {/* Center label */}
+        {hov ? (
+          <>
+            <text
+              x={cx} y={cy - 8}
+              textAnchor="middle" fontSize="10.5" fill="currentColor" opacity="0.45"
+            >
+              {hov.label.length > 9 ? hov.label.slice(0, 9) + "…" : hov.label}
+            </text>
+            <text
+              x={cx} y={cy + 10}
+              textAnchor="middle" fontSize="18" fill="currentColor" fontWeight="700"
+            >
+              {hov.value}
+            </text>
+            <text
+              x={cx} y={cy + 26}
+              textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.45"
+            >
+              {hov.pct.toFixed(1)}%
+            </text>
+          </>
+        ) : (
+          <>
+            <text
+              x={cx} y={cy - 4}
+              textAnchor="middle" fontSize="10.5" fill="currentColor" opacity="0.4"
+            >
+              Total
+            </text>
+            <text
+              x={cx} y={cy + 14}
+              textAnchor="middle" fontSize="19" fill="currentColor" fontWeight="700"
+            >
+              {total}
+            </text>
+          </>
+        )}
       </svg>
-      <ul className="text-sm space-y-1.5">
-        {arcs.map((a,i)=>(
-          <li key={i} className="flex items-center gap-2" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)}>
-            <span className="h-3 w-3 rounded-sm" style={{background:a.color}}/>
-            <span className="muted">{a.label}</span>
-            <span className="ml-auto tabular-nums">{a.value} <span className="muted">({a.pct.toFixed(0)}%)</span></span>
+
+      {/* Legend */}
+      <ul className="text-sm space-y-2 flex-1 min-w-0">
+        {arcs.map((a, i) => (
+          <li
+            key={i}
+            className="flex items-center gap-2.5"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            style={{
+              cursor: "pointer",
+              opacity: hover === null || hover === i ? 1 : 0.45,
+              transition: "opacity 0.15s ease",
+            }}
+          >
+            <span
+              className="h-2.5 w-2.5 rounded-full shrink-0"
+              style={{ background: a.color }}
+            />
+            <span className="muted truncate flex-1 text-xs">{a.label}</span>
+            <span className="tabular-nums text-xs font-semibold shrink-0">{a.value}</span>
+            <span className="muted text-xs shrink-0 w-10 text-right">
+              {a.pct.toFixed(0)}%
+            </span>
           </li>
         ))}
       </ul>
@@ -86,61 +560,56 @@ export function PieChart({ data, size = 200 }: { data: { label: string; value: n
   );
 }
 
-export function LineChart({ data, height = 220, yLabel }: { data: { label: string; value: number }[]; height?: number; yLabel?: string }) {
-  if (!data.length) return <div className="text-sm muted">No data yet.</div>;
-  const w = 600; const padL = 40; const padB = 28; const padT = 10;
-  const innerW = w - padL - 10; const innerH = height - padB - padT;
-  const max = Math.max(...data.map(d=>d.value)); const min = Math.min(...data.map(d=>d.value));
-  const range = max-min || 1;
-  const pts = data.map((d,i)=>({ x: padL + (i/Math.max(1,data.length-1))*innerW, y: padT + innerH - ((d.value-min)/range)*innerH, ...d }));
-  const path = pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
-  const area = `${path} L${pts[pts.length-1].x},${padT+innerH} L${pts[0].x},${padT+innerH} Z`;
-  return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full h-auto">
-      <defs>
-        <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.4"/>
-          <stop offset="100%" stopColor="#14b8a6" stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      {[0,0.5,1].map((t,i)=>{ const y=padT+innerH*(1-t); return <line key={i} x1={padL} x2={w-10} y1={y} y2={y} stroke="currentColor" opacity="0.08"/>; })}
-      <path d={area} fill="url(#lg)"/>
-      <path d={path} fill="none" stroke="#0d9488" strokeWidth="2"/>
-      {pts.map((p,i)=>(
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r="3" fill="#0d9488"/>
-          <title>{p.label}: {p.value}{yLabel?` ${yLabel}`:""}</title>
-        </g>
-      ))}
-      {pts.map((p,i)=> i%Math.ceil(pts.length/6)===0 ? <text key={"l"+i} x={p.x} y={height-10} textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.6">{p.label}</text> : null)}
-    </svg>
-  );
-}
-
+// ─── CapacityGauge ────────────────────────────────────────────────────────────
 export function CapacityGauge({ value, max }: { value: number; max: number }) {
-  const pct = max ? Math.min(100, (value/max)*100) : 0;
+  const pct = max ? Math.min(100, (value / max) * 100) : 0;
   const color = pct < 70 ? "#14b8a6" : pct < 90 ? "#f59e0b" : "#ef4444";
+  const mounted = useMounted();
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-1"><span className="muted">Occupancy</span><span className="font-medium">{value}/{max} ({pct.toFixed(0)}%)</span></div>
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm items-center">
+        <span className="muted">Occupancy</span>
+        <span className="font-semibold tabular-nums" style={{ color }}>
+          {value}/{max}
+          <span className="font-normal muted ml-1.5 text-xs">({pct.toFixed(0)}%)</span>
+        </span>
+      </div>
       <div className="h-3 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }}/>
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: mounted ? `${pct}%` : "0%",
+            background: color,
+            transition: "width 0.85s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        />
       </div>
     </div>
   );
 }
 
-export function StatusPill({ status, kind = "neutral" }: { status: string; kind?: "good"|"warn"|"bad"|"neutral" }) {
-  const map = {
+// ─── StatusPill ───────────────────────────────────────────────────────────────
+export function StatusPill({
+  status,
+  kind = "neutral",
+}: {
+  status: string;
+  kind?: "good" | "warn" | "bad" | "neutral";
+}) {
+  const cls = {
     good: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
     warn: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
     bad: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
     neutral: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
   }[kind];
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${map}`}>{status}</span>;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {status}
+    </span>
+  );
 }
 
-export function healthKind(s?: string|null): "good"|"warn"|"bad"|"neutral" {
+export function healthKind(s?: string | null): "good" | "warn" | "bad" | "neutral" {
   if (!s) return "neutral";
   if (/healthy/i.test(s)) return "good";
   if (/sick|critical|injured/i.test(s)) return "bad";
@@ -148,73 +617,99 @@ export function healthKind(s?: string|null): "good"|"warn"|"bad"|"neutral" {
   return "neutral";
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  Healthy: "#10b981",
-  Recovering: "#f59e0b",
-  "Under Treatment": "#f59e0b",
-  Sick: "#ef4444",
-  Critical: "#ef4444",
-  Injured: "#ef4444",
-  Monitored: "#6366f1",
-  Deceased: "#6b7280",
-  Pending: "#f59e0b",
-  Confirmed: "#3b82f6",
-  "In Progress": "#8b5cf6",
-  Pregnant: "#ec4899",
-  Delivered: "#10b981",
-  Failed: "#ef4444",
-  Success: "#10b981",
-  Open: "#f59e0b",
-  Closed: "#10b981",
-};
-
-export function chartColor(index: number): string {
-  return PALETTE[index % PALETTE.length];
-}
-
-export function statusColor(label: string): string {
-  return STATUS_COLORS[label] || PALETTE[0];
-}
-
-export function MiniDonut({ value, max, size = 80, color }: { value: number; max: number; size?: number; color?: string }) {
+// ─── MiniDonut ────────────────────────────────────────────────────────────────
+export function MiniDonut({
+  value,
+  max,
+  size = 80,
+  color,
+}: {
+  value: number;
+  max: number;
+  size?: number;
+  color?: string;
+}) {
   const pct = max ? Math.min(1, value / max) : 0;
-  const r = size / 2 - 6;
+  const r = size / 2 - 9;
   const cx = size / 2;
   const cy = size / 2;
   const circumference = 2 * Math.PI * r;
-  const filled = circumference * pct;
-  const strokeColor = color || (pct < 0.7 ? "#14b8a6" : pct < 0.9 ? "#f59e0b" : "#ef4444");
+  const strokeColor =
+    color || (pct < 0.7 ? "#14b8a6" : pct < 0.9 ? "#f59e0b" : "#ef4444");
+  const mounted = useMounted(150);
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeWidth="6" opacity="0.08" />
+        {/* Track */}
         <circle
-          cx={cx} cy={cy} r={r} fill="none"
-          stroke={strokeColor} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={circumference} strokeDashoffset={circumference - filled}
+          cx={cx} cy={cy} r={r}
+          fill="none" stroke="currentColor" strokeWidth="9" opacity="0.08"
+        />
+        {/* Progress */}
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={mounted ? circumference * (1 - pct) : circumference}
           transform={`rotate(-90 ${cx} ${cy})`}
-          className="transition-all duration-700"
+          style={{ transition: "stroke-dashoffset 0.95s cubic-bezier(0.4, 0, 0.2, 1) 0.1s" }}
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm font-semibold tabular-nums">{pct.toFixed(0)}%</span>
+        <span className="text-sm font-bold tabular-nums">
+          {(pct * 100).toFixed(0)}%
+        </span>
       </div>
     </div>
   );
 }
 
-export function HorizontalBar({ label, value, max, color }: { label: string; value: number; max: number; color?: string }) {
+// ─── HorizontalBar ────────────────────────────────────────────────────────────
+export function HorizontalBar({
+  label,
+  value,
+  max,
+  color,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color?: string;
+}) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
   const barColor = color || (pct < 70 ? "#14b8a6" : pct < 90 ? "#f59e0b" : "#ef4444");
+  const mounted = useMounted();
+
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="truncate max-w-[140px]">{label}</span>
-        <span className="tabular-nums muted">{value}/{max}</span>
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-sm">
+        <span className="truncate max-w-[150px] font-medium">{label}</span>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="tabular-nums text-xs muted">{value}/{max}</span>
+          <span
+            className="tabular-nums text-xs font-semibold w-10 text-right"
+            style={{ color: barColor }}
+          >
+            {pct.toFixed(0)}%
+          </span>
+        </div>
       </div>
       <div className="h-2.5 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: mounted ? `${pct}%` : "0%",
+            background: barColor,
+            transition: "width 0.85s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        />
       </div>
     </div>
   );

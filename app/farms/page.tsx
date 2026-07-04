@@ -17,6 +17,7 @@ const defaultForm = {
   province: "",
   country: "",
   total_area_acres: "",
+  notes: "",
   is_active: true,
 };
 
@@ -47,6 +48,7 @@ export default function FarmsPage() {
       {
         ...form,
         total_area_acres: form.total_area_acres ? Number(form.total_area_acres) : null,
+        notes: form.notes || null,
       },
       {
         onSuccess: () => {
@@ -192,6 +194,17 @@ export default function FarmsPage() {
                 <Field label="Last updated">
                   <div className="text-sm muted px-1 py-2">{detail.farm.updated_at?.slice(0, 10) ?? "—"}</div>
                 </Field>
+                <div className="col-span-2">
+                  <Field label="Notes">
+                    <textarea
+                      className={inputCls}
+                      rows={3}
+                      defaultValue={detail.farm.notes ?? ""}
+                      placeholder="Location details, management instructions, or other remarks…"
+                      onBlur={(e) => update({ notes: e.target.value || null })}
+                    />
+                  </Field>
+                </div>
               </div>
             </div>
 
@@ -261,6 +274,17 @@ export default function FarmsPage() {
             <input className={inputCls} type="number" step="0.1" value={String(form.total_area_acres)}
               onChange={(e) => setForm({ ...form, total_area_acres: e.target.value })} />
           </Field>
+          <div className="col-span-2">
+            <Field label="Notes">
+              <textarea
+                className={inputCls}
+                rows={3}
+                value={form.notes}
+                placeholder="Location details, management instructions, or other remarks…"
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </Field>
+          </div>
         </div>
       </Modal>
 

@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Users,
   ShieldOff,
+  Zap,
+  ExternalLink,
 } from "lucide-react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, Field, inputCls } from "@/app/components/modal";
@@ -40,6 +42,8 @@ interface VaccinationRecord {
   next_due_date: string | null;
   administered_by: string | null;
   notes: string | null;
+  source: string | null;
+  pregnancy_id: number | null;
 }
 
 type FilterKey =
@@ -48,7 +52,8 @@ type FilterKey =
   | "due_soon"
   | "overdue"
   | "completed"
-  | "upcoming";
+  | "upcoming"
+  | "auto_generated";
 
 interface FilterDef {
   key: FilterKey;
@@ -63,6 +68,7 @@ const FILTERS: FilterDef[] = [
   { key: "overdue", label: "Overdue" },
   { key: "completed", label: "Completed" },
   { key: "upcoming", label: "Upcoming", optional: true },
+  { key: "auto_generated", label: "Auto Generated" },
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -180,8 +186,12 @@ export default function VaccinationsPage() {
       overdue: 0,
       completed: 0,
       upcoming: 0,
+      auto_generated: 0,
     };
-    for (const e of enriched) c[e.status] += 1;
+    for (const e of enriched) {
+      c[e.status] += 1;
+      if (e.record.source === "pregnancy_workflow") c.auto_generated += 1;
+    }
     return c;
   }, [enriched]);
 
@@ -201,9 +211,12 @@ export default function VaccinationsPage() {
     const q = animalSearch.trim().toLowerCase();
     const vq = vaccineSearch.trim().toLowerCase();
     return enriched
-      .filter((e) =>
-        activeFilter === "all" ? true : e.status === activeFilter,
-      )
+      .filter((e) => {
+        if (activeFilter === "all") return true;
+        if (activeFilter === "auto_generated")
+          return e.record.source === "pregnancy_workflow";
+        return e.status === activeFilter;
+      })
       .filter((e) => {
         if (!q) return true;
         const a = e.animal;
@@ -223,7 +236,7 @@ export default function VaccinationsPage() {
       });
   }, [enriched, activeFilter, animalSearch, vaccineSearch]);
 
-  // Sort: actionable items first, then by next_due_date ascending.
+  // Sort: actionable items first (overdue → due today → due soon → upcoming → completed).
   const statusOrder: Record<VaccinationRecordStatus, number> = {
     overdue: 0,
     due_today: 1,
@@ -367,6 +380,14 @@ export default function VaccinationsPage() {
               onClick={() => setActiveFilter("all")}
               active={activeFilter === "all"}
             />
+            <StatTile
+              icon={Zap}
+              label="Auto Generated"
+              value={counts.auto_generated}
+              tone="bg-purple-500/15 text-purple-600 dark:text-purple-400"
+              onClick={() => setActiveFilter("auto_generated")}
+              active={activeFilter === "auto_generated"}
+            />
           </div>
         </div>
 
@@ -451,8 +472,8 @@ export default function VaccinationsPage() {
                 <tr>
                   <th className="px-3 py-2">Animal</th>
                   <th className="px-3 py-2">Vaccine</th>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Next due</th>
+                  <th className="px-3 py-2">Date Administered</th>
+                  <th className="px-3 py-2">Scheduled / Next Due</th>
                   <th className="px-3 py-2">Administered by</th>
                   <th className="px-3 py-2">Status</th>
                   <th></th>
@@ -508,10 +529,30 @@ export default function VaccinationsPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {record.vaccine_name ?? "—"}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{record.vaccine_name ?? "—"}</span>
+                          {record.source === "pregnancy_workflow" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/20 shrink-0">
+                              <Zap size={9} /> Auto Generated
+                            </span>
+                          )}
+                        </div>
+                        {record.source === "pregnancy_workflow" && (
+                          <Link
+                            href="/pregnancy"
+                            className="mt-0.5 text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
+                          >
+                            <ExternalLink size={10} />
+                            Pregnancy Workflow
+                          </Link>
+                        )}
                       </td>
                       <td className="px-3 py-2">
-                        {record.vaccination_date?.slice(0, 10) ?? "—"}
+                        {record.vaccination_date
+                          ? record.vaccination_date.slice(0, 10)
+                          : record.source === "pregnancy_workflow"
+                            ? <span className="muted italic text-xs">Not yet administered</span>
+                            : "—"}
                       </td>
                       <td className="px-3 py-2">
                         {record.next_due_date?.slice(0, 10) ?? "—"}

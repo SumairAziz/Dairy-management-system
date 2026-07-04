@@ -102,7 +102,7 @@ export async function checkAndGenerateAlerts() {
   const upcomingDeliveries = await prisma.pregnancy_records.findMany({
     where: {
       expected_delivery_date: { lte: fourteenDaysFromNow, gte: new Date() },
-      status: { not: "Delivered" },
+      status: { in: ["Confirmed"] }, // only confirmed active pregnancies get delivery alerts
     },
     include: { animals: { select: { animal_id: true, tag_number: true } } },
   });

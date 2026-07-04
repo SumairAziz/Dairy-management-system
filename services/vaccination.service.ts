@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
 import { NotFoundError } from "@/lib/errors";
@@ -5,10 +6,12 @@ import type { VaccinationQueryParams, CreateVaccinationInput, UpdateVaccinationI
 
 export async function findAll(params: VaccinationQueryParams) {
   const { page, pageSize, ...filters } = params;
-  const where: Parameters<typeof prisma.vaccination_records.findMany>[0]["where"] = {};
+  const where: Prisma.vaccination_recordsWhereInput = {};
 
   if (filters.animal_id) where.animal_id = filters.animal_id;
   if (filters.vaccine_name) where.vaccine_name = { contains: filters.vaccine_name, mode: "insensitive" };
+  if (filters.source) where.source = filters.source;
+  if (filters.pregnancy_id) where.pregnancy_id = filters.pregnancy_id;
   if (filters.upcoming === "true") {
     where.next_due_date = { gte: new Date() };
   }
@@ -18,7 +21,11 @@ export async function findAll(params: VaccinationQueryParams) {
       where,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { vaccination_date: "desc" },
+      // Pending/upcoming records (null vaccination_date) first, then most-recently-administered
+      orderBy: [
+        { vaccination_date: { sort: "desc", nulls: "first" } },
+        { next_due_date: "asc" },
+      ],
       include: { animals: { select: { animal_id: true, tag_number: true, animal_name: true } } },
     }),
     prisma.vaccination_records.count({ where }),
