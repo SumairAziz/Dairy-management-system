@@ -17,6 +17,7 @@ import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
 import { NotFoundError } from "@/lib/errors";
 import { cancelWorkflow as cancelPregnancyWorkflow } from "@/services/pregnancy-workflow.service";
+import { recordCalvingLactation } from "@/services/lactation.service";
 import type { CreateCalvingInput, UpdateCalvingInput, CalvingQueryParams } from "@/validators/calving.validator";
 
 export async function findAll(params: CalvingQueryParams) {
@@ -77,8 +78,19 @@ export async function create(data: CreateCalvingInput) {
   // 1. Update mother's reproductive state
   await prisma.animals.update({
     where: { animal_id: data.mother_id },
-    data: { pregnancy_status: "CALVED", lactation_status: "LACTATING" },
+    data: { pregnancy_status: "CALVED", lactation_status: "LACTATING", lifecycle_stage: "Lactating" },
   }).catch((err) => console.error("[calving] Failed to update mother state:", err));
+
+  try {
+    await recordCalvingLactation(
+      data.mother_id,
+      calvingDate,
+      created.calving_id,
+      data.pregnancy_id ?? null,
+    );
+  } catch (err) {
+    console.error("[calving] Failed to record lactation period:", err);
+  }
 
   // 2. Update linked pregnancy record to Delivered
   if (data.pregnancy_id) {
@@ -112,7 +124,7 @@ export async function create(data: CreateCalvingInput) {
     : "";
 
   const recipients = await prisma.users.findMany({
-    where: { role: { in: ["ADMIN", "MANAGER", "VETERINARIAN"] }, is_active: true },
+    where: { role: { in: ["ADMIN", "FARM_MANAGER", "VETERINARIAN"] }, is_active: true },
     select: { user_id: true },
   });
 

@@ -13,14 +13,40 @@ import {
   isActivePregnancy,
   isDeliveredPregnancy,
   isFailedPregnancy,
+  buildPregnancyStatusWhere,
+  type PregnancyStatusKey,
 } from "@/lib/pregnancy-status";
+
+const COMPUTED_STATUS_KEYS = new Set<PregnancyStatusKey>([
+  "pending",
+  "confirmed",
+  "due_soon",
+  "overdue",
+  "delivered",
+  "failed",
+]);
 
 export async function findAll(params: PregnancyQueryParams) {
   const { page, pageSize, ...filters } = params;
-  const where: Prisma.pregnancy_recordsWhereInput = {};
+  const andParts: Prisma.pregnancy_recordsWhereInput[] = [];
 
-  if (filters.animal_id) where.animal_id = filters.animal_id;
-  if (filters.status) where.status = filters.status;
+  if (filters.animal_id) andParts.push({ animal_id: filters.animal_id });
+  if (filters.confirmed === "yes") andParts.push({ pregnancy_confirmed: true });
+  if (filters.confirmed === "no") {
+    andParts.push({
+      OR: [{ pregnancy_confirmed: false }, { pregnancy_confirmed: null }],
+    });
+  }
+  if (filters.status && COMPUTED_STATUS_KEYS.has(filters.status as PregnancyStatusKey)) {
+    andParts.push(
+      buildPregnancyStatusWhere(filters.status as PregnancyStatusKey) as Prisma.pregnancy_recordsWhereInput,
+    );
+  } else if (filters.status) {
+    andParts.push({ status: filters.status });
+  }
+
+  const where: Prisma.pregnancy_recordsWhereInput =
+    andParts.length > 0 ? { AND: andParts } : {};
 
   const [data, total] = await Promise.all([
     prisma.pregnancy_records.findMany({
@@ -54,13 +80,18 @@ export async function create(data: CreatePregnancyRecordInput) {
   };
   const created = await prisma.pregnancy_records.create({ data: prismaData });
 
-  if (data.status === "Confirmed") {
-    // Update animal's pregnancy status
+  if (isActivePregnancy({ status: data.status })) {
+    // Keep the animal's denormalized pregnancy_status in sync with any
+    // active status (Pending/Confirmed/In Progress), not just "Confirmed" —
+    // records default to "Pending" on creation, and that already counts as
+    // pregnant everywhere else (dashboard counts, breeding eligibility).
     await prisma.animals.update({
       where: { animal_id: created.animal_id },
       data: { pregnancy_status: "PREGNANT" },
     }).catch(() => {});
+  }
 
+  if (data.status === "Confirmed") {
     // Create vaccination reminders (dry-off, pre-calving)
     try {
       await triggerWorkflow(
@@ -96,6 +127,9 @@ export async function update(id: number, data: UpdatePregnancyRecordInput) {
     const wasConfirmed = (old as { status?: string | null }).status === "Confirmed";
     const nowConfirmed = data.status === "Confirmed";
     const oldStatus = (old as { status?: string | null }).status;
+    const newStatus = data.status !== undefined ? data.status : oldStatus;
+    const wasActive = isActivePregnancy({ status: oldStatus });
+    const nowActive = isActivePregnancy({ status: newStatus });
     const nowFailed = isFailedPregnancy(data.status) && !isFailedPregnancy(oldStatus);
     const nowDelivered = isDeliveredPregnancy(data.status) && !isDeliveredPregnancy(oldStatus);
 
@@ -134,6 +168,16 @@ export async function update(id: number, data: UpdatePregnancyRecordInput) {
         inseminationDate,
         eddRaw ? new Date(eddRaw) : null,
       );
+    } else if (!wasActive && nowActive) {
+      // Reactivated into Pending/In Progress without going through the
+      // explicit "Confirmed" transition above — e.g. correcting a mistaken
+      // Failed/Delivered edit back to Pending. Keep pregnancy_status in
+      // sync; vaccination reminders stay tied to an actual Confirmed
+      // transition, so no workflow trigger here.
+      await prisma.animals.update({
+        where: { animal_id: updated.animal_id },
+        data: { pregnancy_status: "PREGNANT" },
+      }).catch(() => {});
     } else if (wasConfirmed && data.expected_delivery_date) {
       const oldEdd = (old as { expected_delivery_date?: string | null }).expected_delivery_date;
       if (data.expected_delivery_date !== oldEdd?.slice(0, 10)) {

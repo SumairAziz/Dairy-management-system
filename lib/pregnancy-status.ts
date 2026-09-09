@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 // All pregnancy progress/status values are computed live from the existing
 // schema fields (insemination_date, pregnancy_confirmed, expected/actual
 // delivery dates, status) — nothing extra is stored. Default dairy cow
@@ -34,6 +36,23 @@ export function isActivePregnancy(record: {
 /** True for bare status strings — useful in Prisma `{ in: [...] }` clauses. */
 export function isPregnantStatus(status: string | null | undefined): boolean {
   return (ACTIVE_PREGNANCY_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/**
+ * Single source of truth for "is this animal currently pregnant" — a Prisma
+ * `where` fragment for the `animals` model, expressed as a relational filter
+ * against `pregnancy_records` rather than the denormalized
+ * `animals.pregnancy_status` column. Use this everywhere an animal-level
+ * pregnant/not-pregnant check is needed (dashboard counts, table filters,
+ * breeding eligibility) so they can never drift apart the way a cached
+ * column and its live source can.
+ */
+export function getPregnantAnimalsFilter(): Prisma.animalsWhereInput {
+  return {
+    pregnancy_records: {
+      some: { status: { in: [...ACTIVE_PREGNANCY_STATUSES] } },
+    },
+  };
 }
 
 /** True when the pregnancy has fully resolved (Delivered, Failed, or Aborted). */
@@ -239,8 +258,8 @@ export function getPregnancyStatus(
   return {
     key: "confirmed",
     label: "Confirmed",
-    cls: "bg-blue-500/15 text-blue-400",
-    dot: "bg-blue-400",
+    cls: "bg-violet-500/15 text-violet-400",
+    dot: "bg-violet-400",
   };
 }
 
@@ -256,3 +275,85 @@ export const PREGNANCY_STATUS_FILTERS: Array<{
   { key: "delivered", label: "Delivered" },
   { key: "failed", label: "Failed" },
 ];
+
+/**
+ * Server-side equivalent of `getPregnancyStatus()`'s branching, expressed as
+ * a Prisma `where` fragment instead of a JS comparison over an already-fetched
+ * record — same statuses, same GESTATION_DAYS/14-day-due-soon thresholds,
+ * just queryable. Used by the `/pregnancy?status=` drill-down filter so large
+ * lists can be filtered/paginated server-side instead of over-fetching.
+ */
+/** Active pregnancies with expected delivery within N days (inclusive). */
+export function buildPregnancyDueWithinDaysWhere(
+  days: number,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const today = startOfDay(now);
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() + days);
+
+  function expectedDateBoundary(op: "lt" | "gte" | "lte" | "gt", d: Date) {
+    const inseminationBoundary = new Date(d);
+    inseminationBoundary.setDate(inseminationBoundary.getDate() - GESTATION_DAYS);
+    return {
+      OR: [
+        { expected_delivery_date: { [op]: d } },
+        { expected_delivery_date: null, insemination_date: { [op]: inseminationBoundary } },
+      ],
+    };
+  }
+
+  return {
+    AND: [
+      { status: { notIn: [...TERMINAL_PREGNANCY_STATUSES] } },
+      expectedDateBoundary("gte", today),
+      expectedDateBoundary("lte", cutoff),
+    ],
+  };
+}
+
+export function buildPregnancyStatusWhere(
+  key: PregnancyStatusKey,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const today = startOfDay(now);
+  const dueSoonCutoff = new Date(today);
+  dueSoonCutoff.setDate(dueSoonCutoff.getDate() + 14);
+
+  // Mirrors getExpectedDeliveryDate()'s fallback: when expected_delivery_date
+  // is null, the expected date is insemination_date + GESTATION_DAYS. So a
+  // date boundary `d` on the expected date corresponds to boundary
+  // `d - GESTATION_DAYS` on insemination_date for records with no explicit
+  // expected_delivery_date.
+  function expectedDateBoundary(op: "lt" | "gte" | "lte" | "gt", d: Date) {
+    const inseminationBoundary = new Date(d);
+    inseminationBoundary.setDate(inseminationBoundary.getDate() - GESTATION_DAYS);
+    return {
+      OR: [
+        { expected_delivery_date: { [op]: d } },
+        { expected_delivery_date: null, insemination_date: { [op]: inseminationBoundary } },
+      ],
+    };
+  }
+
+  switch (key) {
+    case "failed":
+      return { status: "Failed" };
+    case "delivered":
+      return { status: "Delivered" };
+    case "pending":
+      return { OR: [{ status: null }, { status: { notIn: ["Failed", "Delivered", "Confirmed"] } }] };
+    case "overdue":
+      return { AND: [{ status: "Confirmed" }, expectedDateBoundary("lt", today)] };
+    case "due_soon":
+      return {
+        AND: [
+          { status: "Confirmed" },
+          expectedDateBoundary("gte", today),
+          expectedDateBoundary("lte", dueSoonCutoff),
+        ],
+      };
+    case "confirmed":
+      return { AND: [{ status: "Confirmed" }, expectedDateBoundary("gt", dueSoonCutoff)] };
+  }
+}

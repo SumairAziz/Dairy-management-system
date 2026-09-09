@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, AlertCircle, Check } from "lucide-react";
@@ -17,15 +17,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import type { Role } from "@/types";
-
-const ROLES: { value: Role; label: string; description: string }[] = [
-  { value: "ADMIN", label: "Admin", description: "Full system access" },
-  { value: "MANAGER", label: "Manager", description: "Manage farms, animals, milk" },
-  { value: "VETERINARIAN", label: "Veterinarian", description: "Health, vaccinations, breeding" },
-  { value: "WORKER", label: "Worker", description: "Daily data entry" },
-  { value: "VIEWER", label: "Viewer", description: "Read-only access" },
-];
 
 const PASSWORD_REQUIREMENTS = [
   { test: (v: string) => v.length >= 6, label: "At least 6 characters" },
@@ -43,7 +34,7 @@ export default function RegisterPage() {
     name: "",
     email: "",
     password: "",
-    role: "VIEWER",
+    role: "FARM_WORKER",
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -285,27 +276,10 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* Role */}
-            <div className="space-y-2">
-              <label htmlFor="role" className="text-sm font-medium">
-                Role
-              </label>
-              <select
-                id="role"
-                value={form.role}
-                onChange={(e) => updateField("role", e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label} — {r.description}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.role && (
-                <p className="text-sm text-destructive">{fieldErrors.role}</p>
-              )}
-            </div>
+            <p className="text-xs muted">
+              Public registration creates a farm worker account. Contact an administrator for
+              elevated access.
+            </p>
 
             <Button
               type="submit"

@@ -12,6 +12,20 @@ export function useVaccinations(params: Record<string, string> = {}) {
   });
 }
 
+export function useVaccinationStats() {
+  return useQuery({
+    queryKey: ["vaccinations", "stats"],
+    queryFn: () =>
+      api.get<{
+        overdue: number;
+        due_today: number;
+        due_soon: number;
+        upcoming: number;
+        completed: number;
+      }>("/vaccinations/stats"),
+  });
+}
+
 export function useVaccination(id: number) {
   return useQuery({
     queryKey: ["vaccination", id],

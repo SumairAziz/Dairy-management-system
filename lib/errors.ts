@@ -45,6 +45,14 @@ import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 
 export function handleApiError(error: unknown): NextResponse {
+  if (isStructuredAssistantError(error)) {
+    logStructuredAssistantError(error);
+    return NextResponse.json(
+      { success: false, error: error.toClientPayload() },
+      { status: error.statusCode },
+    );
+  }
+
   if (error instanceof AppError) {
     return NextResponse.json(
       { success: false, error: { code: error.code, message: error.message } },
@@ -114,5 +122,48 @@ export function handleApiError(error: unknown): NextResponse {
       },
     },
     { status: 500 },
+  );
+}
+
+interface StructuredAssistantErrorLike {
+  statusCode: number;
+  toClientPayload: () => Record<string, unknown>;
+}
+
+function isStructuredAssistantError(error: unknown): error is StructuredAssistantErrorLike {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    typeof (error as StructuredAssistantErrorLike).toClientPayload === "function"
+  );
+}
+
+function logStructuredAssistantError(
+  error: StructuredAssistantErrorLike & {
+    code?: string;
+    message?: string;
+    context?: {
+      provider?: string;
+      model?: string;
+      tool?: string;
+      httpStatus?: number;
+      httpStatusText?: string;
+      details?: string;
+    };
+  },
+): void {
+  console.error(
+    "[AI ERROR]",
+    JSON.stringify({
+      code: "code" in error ? error.code : null,
+      message: "message" in error ? error.message : null,
+      provider: error.context?.provider ?? null,
+      model: error.context?.model ?? null,
+      tool: error.context?.tool ?? null,
+      httpStatus: error.context?.httpStatus ?? null,
+      httpStatusText: error.context?.httpStatusText ?? null,
+      details: error.context?.details ?? null,
+    }),
   );
 }

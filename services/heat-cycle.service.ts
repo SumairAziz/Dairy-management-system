@@ -1,18 +1,77 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
 import type { HeatCycleQueryParams } from "@/validators";
 import type { CreateHeatCycleInput, UpdateHeatCycleInput } from "@/validators/heat-cycle.validator";
 import { NotFoundError } from "@/lib/errors";
+import { isActivePregnancy } from "@/lib/pregnancy-status";
+import {
+  computeCycleLengths,
+  getHeatCycleStatus,
+  matchesHeatStatusFilter,
+  type MinimalHeatCycleRecord,
+} from "@/lib/heat-cycle-status";
+
+/**
+ * Resolves the `status` drill-down filter (in_heat/due_today/due_this_week/
+ * upcoming/overdue) to the set of heat_cycle_ids representing each matching
+ * animal's *current* record — mirrors the same computation the dashboard
+ * page uses (lib/heat-cycle-status.ts), just run over the whole herd instead
+ * of an already-fetched page.
+ */
+async function resolveStatusHeatCycleIds(
+  status: NonNullable<HeatCycleQueryParams["status"]>,
+): Promise<number[]> {
+  const [allRecords, activePregRecords] = await Promise.all([
+    prisma.heat_cycle_records.findMany({
+      select: { heat_cycle_id: true, animal_id: true, heat_start_date: true, heat_end_date: true },
+    }),
+    prisma.pregnancy_records.findMany({ select: { animal_id: true, status: true } }),
+  ]);
+
+  const activePregs = new Set<number>();
+  for (const p of activePregRecords) {
+    if (isActivePregnancy(p)) activePregs.add(p.animal_id);
+  }
+
+  const minimalRecords: MinimalHeatCycleRecord[] = allRecords.map((r) => ({
+    animal_id: r.animal_id,
+    heat_start_date: r.heat_start_date ? r.heat_start_date.toISOString() : null,
+    heat_end_date: r.heat_end_date ? r.heat_end_date.toISOString() : null,
+  }));
+  const computation = computeCycleLengths(minimalRecords);
+
+  const matchingIds: number[] = [];
+  for (const record of allRecords) {
+    const latest = record.animal_id ? computation.latestByAnimal.get(record.animal_id) : undefined;
+    // Only the animal's current (latest) record can carry a live status.
+    if (!latest || latest.heat_start_date !== (record.heat_start_date ? record.heat_start_date.toISOString() : null)) {
+      continue;
+    }
+    const minimal: MinimalHeatCycleRecord = {
+      animal_id: record.animal_id,
+      heat_start_date: record.heat_start_date ? record.heat_start_date.toISOString() : null,
+      heat_end_date: record.heat_end_date ? record.heat_end_date.toISOString() : null,
+    };
+    const result = getHeatCycleStatus(minimal, computation, activePregs);
+    if (matchesHeatStatusFilter(result, status)) matchingIds.push(record.heat_cycle_id);
+  }
+  return matchingIds;
+}
 
 export async function findAll(params: HeatCycleQueryParams) {
-  const { page, pageSize, ...filters } = params;
-  const where: Parameters<typeof prisma.heat_cycle_records.findMany>[0]["where"] = {};
+  const { page, pageSize, status, ...filters } = params;
+  const where: Prisma.heat_cycle_recordsWhereInput = {};
 
   if (filters.animal_id) where.animal_id = filters.animal_id;
+  if (filters.detection_method) where.detection_method = filters.detection_method;
   if (filters.date_from || filters.date_to) {
     where.heat_start_date = {};
-    if (filters.date_from) (where.heat_start_date as { gte?: Date }).gte = new Date(filters.date_from);
-    if (filters.date_to) (where.heat_start_date as { lte?: Date }).lte = new Date(filters.date_to);
+    if (filters.date_from) where.heat_start_date.gte = new Date(filters.date_from);
+    if (filters.date_to) where.heat_start_date.lte = new Date(filters.date_to);
+  }
+  if (status) {
+    where.heat_cycle_id = { in: await resolveStatusHeatCycleIds(status) };
   }
 
   const [data, total] = await Promise.all([

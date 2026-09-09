@@ -17,6 +17,22 @@ model users {
   updated_at    DateTime?       @default(now()) @db.Timestamp(6)
   audit_logs    audit_logs[]
   notifications notifications[]
+  chat_participants           chat_conversation_participants[]
+  chat_messages_sent          chat_messages[]
+  chat_message_reads          chat_message_reads[]
+  user_presence               user_presence?
+  inventory_transactions      inventory_transactions[]
+}
+
+model role_permissions {
+  id             Int       @id @default(autoincrement())
+  role           String    @db.VarChar(30)
+  permission_key String    @db.VarChar(80)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+
+  @@unique([role, permission_key], map: "unique_role_permission")
+  @@index([role], map: "idx_role_permissions_role")
 }
 
 model audit_logs {
@@ -87,6 +103,7 @@ model animals {
   health_incidents                                            health_incidents[]
   heat_cycle_records                                          heat_cycle_records[]
   milk_logs                                                   milk_logs[]
+  lactation_periods                                           lactation_periods[]
   pregnancy_records                                           pregnancy_records[]
   vaccination_records                                         vaccination_records[]
 
@@ -153,6 +170,7 @@ model calving_records {
   mother            animals            @relation("calving_as_mother", fields: [mother_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction)
   calf              animals?           @relation("calving_as_calf", fields: [calf_id], references: [animal_id], onDelete: SetNull, onUpdate: NoAction)
   pregnancy_records pregnancy_records? @relation(fields: [pregnancy_id], references: [pregnancy_id], onDelete: SetNull, onUpdate: NoAction)
+  lactation_periods lactation_periods[]
 
   @@index([mother_id], map: "idx_calving_records_mother_id")
   @@index([calving_date], map: "idx_calving_records_date")
@@ -175,6 +193,8 @@ model farms {
   updated_at       DateTime? @default(now()) @db.Timestamp(6)
   animals          animals[]
   units            units[]
+  inventory_items  inventory_items[]
+  group_treatment_batches group_treatment_batches[]
 }
 
 model growth_logs {
@@ -237,6 +257,25 @@ model milk_logs {
   @@unique([animal_id, production_date, session], map: "uq_milk_logs_animal_date_session")
 }
 
+model lactation_periods {
+  period_id         Int                @id @default(autoincrement())
+  animal_id         Int
+  // "LACTATING" | "DRY" — tracks explicit production lifecycle periods
+  period_type       String             @db.VarChar(20)
+  start_date        DateTime           @db.Date
+  end_date          DateTime?          @db.Date
+  pregnancy_id      Int?
+  calving_id        Int?
+  notes             String?
+  created_at        DateTime?          @default(now()) @db.Timestamp(6)
+  animals           animals            @relation(fields: [animal_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction)
+  pregnancy_records pregnancy_records? @relation(fields: [pregnancy_id], references: [pregnancy_id], onDelete: SetNull, onUpdate: NoAction)
+  calving_records   calving_records?   @relation(fields: [calving_id], references: [calving_id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([animal_id], map: "idx_lactation_periods_animal_id")
+  @@index([animal_id, end_date], map: "idx_lactation_periods_open")
+}
+
 model pregnancy_records {
   pregnancy_id           Int               @id @default(autoincrement())
   animal_id              Int
@@ -252,6 +291,7 @@ model pregnancy_records {
   animals                animals           @relation(fields: [animal_id], references: [animal_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pregnancy_animal")
   breeding_records       breeding_records? @relation(fields: [breeding_id], references: [breeding_id], onDelete: SetNull, onUpdate: NoAction)
   calving_records        calving_records[]
+  lactation_periods      lactation_periods[]
   vaccination_records    vaccination_records[]
 
   @@index([animal_id], map: "idx_pregnancy_records_animal_id")
@@ -271,13 +311,21 @@ model species {
 }
 
 model treatment_records {
-  treatment_id     Int               @id @default(autoincrement())
-  incident_id      Int?
-  medicine_id      Int?
-  dosage           String?           @db.VarChar(50)
-  treatment_date   DateTime?         @db.Date
-  remarks          String?
-  health_incidents health_incidents? @relation(fields: [incident_id], references: [incident_id], onDelete: NoAction, onUpdate: NoAction)
+  treatment_id      Int                    @id @default(autoincrement())
+  incident_id       Int?
+  medicine_id       Int?
+  dosage            String?                @db.VarChar(50)
+  treatment_date    DateTime?              @db.Date
+  remarks           String?
+  batch_id          Int?
+  inventory_item_id Int?
+  medicine_name     String?                @db.VarChar(150)
+  health_incidents  health_incidents?      @relation(fields: [incident_id], references: [incident_id], onDelete: NoAction, onUpdate: NoAction)
+  group_treatment_batches group_treatment_batches? @relation(fields: [batch_id], references: [batch_id], onDelete: SetNull, onUpdate: NoAction)
+  inventory_items   inventory_items?       @relation(fields: [inventory_item_id], references: [item_id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([batch_id], map: "idx_treatment_records_batch_id")
+  @@index([inventory_item_id], map: "idx_treatment_records_inventory_item_id")
 }
 
 model units {
@@ -293,6 +341,7 @@ model units {
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
   animals     animals[]
   farms       farms     @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_unit_farm")
+  group_treatment_batches group_treatment_batches[]
 }
 
 model vaccination_records {
@@ -307,12 +356,194 @@ model vaccination_records {
   source            String?            @db.VarChar(50)
   pregnancy_id      Int?
   breeding_id       Int?
+  batch_id          Int?
+  inventory_item_id Int?
+  dosage            Decimal?           @db.Decimal(10, 2)
   animals           animals?           @relation(fields: [animal_id], references: [animal_id], onDelete: NoAction, onUpdate: NoAction)
   pregnancy_records pregnancy_records? @relation(fields: [pregnancy_id], references: [pregnancy_id], onDelete: SetNull, onUpdate: NoAction)
   breeding_records  breeding_records?  @relation(fields: [breeding_id], references: [breeding_id], onDelete: SetNull, onUpdate: NoAction)
+  group_treatment_batches group_treatment_batches? @relation(fields: [batch_id], references: [batch_id], onDelete: SetNull, onUpdate: NoAction)
+  inventory_items   inventory_items?   @relation(fields: [inventory_item_id], references: [item_id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([animal_id], map: "idx_vaccination_records_animal_id")
   @@index([next_due_date], map: "idx_vaccination_records_next_due")
   @@index([pregnancy_id], map: "idx_vaccination_records_pregnancy_id")
   @@index([breeding_id], map: "idx_vaccination_records_breeding_id")
+  @@index([batch_id], map: "idx_vaccination_records_batch_id")
+  @@index([inventory_item_id], map: "idx_vaccination_records_inventory_item_id")
+}
+
+model inventory_items {
+  item_id                Int                      @id @default(autoincrement())
+  farm_id                Int?
+  item_name              String                   @db.VarChar(150)
+  category               String                   @db.VarChar(50)
+  quantity               Decimal                  @default(0) @db.Decimal(10, 2)
+  unit                   String                   @db.VarChar(30)
+  reorder_level          Decimal?                 @db.Decimal(10, 2)
+  unit_cost              Decimal?                 @db.Decimal(10, 2)
+  supplier               String?                  @db.VarChar(150)
+  expiry_date            DateTime?                @db.Date
+  notes                  String?
+  is_active              Boolean?                 @default(true)
+  created_at             DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at             DateTime?                @default(now()) @db.Timestamp(6)
+  farms                  farms?                   @relation(fields: [farm_id], references: [farm_id], onDelete: SetNull, onUpdate: NoAction)
+  inventory_transactions inventory_transactions[]
+  vaccination_records    vaccination_records[]
+  treatment_records      treatment_records[]
+  group_treatment_batches group_treatment_batches[]
+  inventory_lots         inventory_lots[]
+
+  @@index([farm_id], map: "idx_inventory_items_farm_id")
+  @@index([category], map: "idx_inventory_items_category")
+  @@index([expiry_date], map: "idx_inventory_items_expiry_date")
+}
+
+model inventory_lots {
+  lot_id               Int                      @id @default(autoincrement())
+  item_id              Int
+  lot_number           String?                  @db.VarChar(80)
+  quantity             Decimal                  @db.Decimal(10, 2)
+  remaining_quantity   Decimal                  @db.Decimal(10, 2)
+  unit_cost            Decimal?                 @db.Decimal(10, 2)
+  supplier             String?                  @db.VarChar(150)
+  manufacturing_date   DateTime?                @db.Date
+  expiry_date          DateTime?                @db.Date
+  received_date        DateTime                 @db.Date
+  notes                String?
+  is_active            Boolean                  @default(true)
+  created_at           DateTime?                @default(now()) @db.Timestamp(6)
+  inventory_items      inventory_items          @relation(fields: [item_id], references: [item_id], onDelete: Cascade, onUpdate: NoAction)
+  inventory_transactions inventory_transactions[]
+
+  @@index([item_id], map: "idx_inventory_lots_item_id")
+  @@index([expiry_date], map: "idx_inventory_lots_expiry_date")
+}
+
+model inventory_transactions {
+  transaction_id   Int              @id @default(autoincrement())
+  item_id          Int
+  lot_id           Int?
+  user_id          Int?
+  transaction_type String           @db.VarChar(30)
+  quantity         Decimal          @db.Decimal(10, 2)
+  transaction_date DateTime         @db.Date
+  reference        String?          @db.VarChar(255)
+  notes            String?
+  created_at       DateTime?        @default(now()) @db.Timestamp(6)
+  inventory_items  inventory_items  @relation(fields: [item_id], references: [item_id], onDelete: Cascade, onUpdate: NoAction)
+  inventory_lots   inventory_lots?  @relation(fields: [lot_id], references: [lot_id], onDelete: SetNull, onUpdate: NoAction)
+  users            users?           @relation(fields: [user_id], references: [user_id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([item_id], map: "idx_inventory_transactions_item_id")
+  @@index([transaction_date], map: "idx_inventory_transactions_date")
+  @@index([lot_id], map: "idx_inventory_transactions_lot_id")
+  @@index([transaction_type], map: "idx_inventory_transactions_type")
+  @@index([user_id], map: "idx_inventory_transactions_user_id")
+}
+
+model group_treatment_batches {
+  batch_id           Int       @id @default(autoincrement())
+  farm_id            Int
+  unit_id            Int?
+  treatment_type     String    @db.VarChar(20)
+  inventory_item_id  Int
+  treatment_date     DateTime  @db.Date
+  dosage_per_animal  Decimal   @db.Decimal(10, 2)
+  total_quantity     Decimal   @db.Decimal(10, 2)
+  animal_count       Int
+  administered_by    String?   @db.VarChar(100)
+  notes              String?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  farms              farms     @relation(fields: [farm_id], references: [farm_id], onDelete: NoAction, onUpdate: NoAction)
+  units              units?    @relation(fields: [unit_id], references: [unit_id], onDelete: SetNull, onUpdate: NoAction)
+  inventory_items    inventory_items @relation(fields: [inventory_item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  vaccination_records vaccination_records[]
+  treatment_records  treatment_records[]
+
+  @@index([farm_id], map: "idx_group_treatment_batches_farm_id")
+  @@index([unit_id], map: "idx_group_treatment_batches_unit_id")
+  @@index([treatment_date], map: "idx_group_treatment_batches_date")
+}
+
+model chat_conversations {
+  conversation_id  Int       @id @default(autoincrement())
+  type             String    @default("direct") @db.VarChar(20)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+  last_message_at  DateTime? @db.Timestamp(6)
+  participants     chat_conversation_participants[]
+  messages         chat_messages[]
+
+  @@index([last_message_at(sort: Desc)], map: "idx_chat_conversations_last_message")
+}
+
+model chat_conversation_participants {
+  participant_id         Int       @id @default(autoincrement())
+  conversation_id        Int
+  user_id                Int
+  joined_at              DateTime? @default(now()) @db.Timestamp(6)
+  last_read_message_id   Int?
+  last_read_at           DateTime? @db.Timestamp(6)
+  chat_conversations     chat_conversations @relation(fields: [conversation_id], references: [conversation_id], onDelete: Cascade)
+  users                  users              @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([conversation_id, user_id], map: "unique_chat_participant")
+  @@index([user_id], map: "idx_chat_participants_user_id")
+  @@index([conversation_id], map: "idx_chat_participants_conversation_id")
+}
+
+model chat_messages {
+  message_id      Int       @id @default(autoincrement())
+  conversation_id Int
+  sender_id       Int
+  body            String?   @db.Text
+  message_type    String    @default("text") @db.VarChar(20)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  chat_conversations chat_conversations @relation(fields: [conversation_id], references: [conversation_id], onDelete: Cascade)
+  sender             users              @relation(fields: [sender_id], references: [user_id], onDelete: Cascade)
+  attachments        chat_message_attachments[]
+  reads              chat_message_reads[]
+
+  @@index([conversation_id, message_id(sort: Desc)], map: "idx_chat_messages_conversation_id")
+  @@index([conversation_id, created_at(sort: Desc)], map: "idx_chat_messages_created")
+}
+
+model chat_message_attachments {
+  attachment_id         Int       @id @default(autoincrement())
+  message_id            Int?
+  file_name             String    @db.VarChar(255)
+  file_type             String    @db.VarChar(120)
+  file_size             Int
+  original_file_size    Int?
+  storage_key           String    @db.VarChar(500)
+  thumbnail_storage_key String?   @db.VarChar(500)
+  media_type            String    @default("file") @db.VarChar(20)
+  width                 Int?
+  height                Int?
+  duration_seconds      Float?
+  created_at            DateTime? @default(now()) @db.Timestamp(6)
+  chat_messages chat_messages? @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
+
+  @@index([message_id], map: "idx_chat_attachments_message_id")
+}
+
+model chat_message_reads {
+  read_id    Int       @id @default(autoincrement())
+  message_id Int
+  user_id    Int
+  read_at    DateTime? @default(now()) @db.Timestamp(6)
+  chat_messages chat_messages @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
+  users         users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([message_id, user_id], map: "unique_chat_message_read")
+  @@index([user_id], map: "idx_chat_message_reads_user_id")
+}
+
+model user_presence {
+  user_id      Int       @id
+  last_seen_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+  users        users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }

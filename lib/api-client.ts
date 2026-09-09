@@ -1,3 +1,17 @@
+import type { AiAssistantErrorPayload } from "@/lib/ai/assistant-errors";
+
+export interface ApiErrorPayload extends AiAssistantErrorPayload {}
+
+export class ApiRequestError extends Error {
+  public readonly payload: ApiErrorPayload;
+
+  constructor(payload: ApiErrorPayload) {
+    super(payload.message);
+    this.name = "ApiRequestError";
+    this.payload = payload;
+  }
+}
+
 export class ApiClient {
   private baseUrl: string;
   constructor(baseUrl = "/api") {
@@ -12,10 +26,11 @@ export class ApiClient {
     if (res.status === 204) return undefined as unknown as T;
     const json = await res.json();
     if (!res.ok) {
-      const errMsg = json?.error?.message || json?.error || "Request failed";
-      throw new Error(
-        typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg),
-      );
+      const payload = (json?.error ?? {
+        code: "UNKNOWN_ERROR",
+        message: "Request failed",
+      }) as ApiErrorPayload;
+      throw new ApiRequestError(payload);
     }
     return json.data !== undefined && json.total === undefined
       ? json.data

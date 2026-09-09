@@ -28,6 +28,8 @@ export const heatCycleQuerySchema = z.object({
   animal_id: z.coerce.number().int().positive().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  status: z.enum(["in_heat", "due_today", "due_this_week", "upcoming", "overdue"]).optional(),
+  detection_method: z.string().optional(),
 });
 
 export type CreateHeatCycleInput = z.infer<typeof createHeatCycleSchema>;

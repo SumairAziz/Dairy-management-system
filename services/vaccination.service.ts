@@ -3,17 +3,32 @@ import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
 import { NotFoundError } from "@/lib/errors";
 import type { VaccinationQueryParams, CreateVaccinationInput, UpdateVaccinationInput } from "@/validators/vaccination.validator";
+import { buildVaccinationStatusWhere, countVaccinationRecordsByStatus } from "@/lib/vaccination-status";
 
 export async function findAll(params: VaccinationQueryParams) {
   const { page, pageSize, ...filters } = params;
   const where: Prisma.vaccination_recordsWhereInput = {};
 
   if (filters.animal_id) where.animal_id = filters.animal_id;
-  if (filters.vaccine_name) where.vaccine_name = { contains: filters.vaccine_name, mode: "insensitive" };
+  if (filters.animal_search) {
+    where.animals = {
+      OR: [
+        { tag_number: { contains: filters.animal_search, mode: "insensitive" } },
+        { animal_name: { contains: filters.animal_search, mode: "insensitive" } },
+      ],
+    };
+  }
+  const vaccineQuery = filters.vaccine_search ?? filters.vaccine_name;
+  if (vaccineQuery) {
+    where.vaccine_name = { contains: vaccineQuery, mode: "insensitive" };
+  }
   if (filters.source) where.source = filters.source;
   if (filters.pregnancy_id) where.pregnancy_id = filters.pregnancy_id;
   if (filters.upcoming === "true") {
     where.next_due_date = { gte: new Date() };
+  }
+  if (filters.status) {
+    Object.assign(where, buildVaccinationStatusWhere(filters.status));
   }
 
   const [data, total] = await Promise.all([
@@ -31,6 +46,13 @@ export async function findAll(params: VaccinationQueryParams) {
     prisma.vaccination_records.count({ where }),
   ]);
   return serialize({ data, total, page, pageSize });
+}
+
+export async function getStatusCounts(now: Date = new Date()) {
+  return countVaccinationRecordsByStatus(
+    (where) => prisma.vaccination_records.count({ where }),
+    now,
+  );
 }
 
 export async function findById(id: number) {

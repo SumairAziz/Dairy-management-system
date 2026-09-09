@@ -83,7 +83,7 @@ export async function checkAndGenerateAlerts() {
   });
 
   const admins = await prisma.users.findMany({
-    where: { role: { in: ["ADMIN", "MANAGER", "VETERINARIAN"] } },
+    where: { role: { in: ["ADMIN", "FARM_MANAGER", "VETERINARIAN"] } },
   });
 
   for (const v of upcomingVaccinations) {

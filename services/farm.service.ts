@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { serialize } from "@/lib/serialize";
 import { NotFoundError } from "@/lib/errors";
+import { sumDailyMilkLiters } from "@/lib/milk-daily";
 import type { CreateFarmInput, UpdateFarmInput } from "@/validators/farm.validator";
 
 export async function findAll() {
@@ -12,14 +13,11 @@ export async function findAll() {
 }
 
 export async function findById(id: number) {
-  const [farm, animalCount, unitCount, milk, species, health] = await Promise.all([
+  const [farm, animalCount, unitCount, dailyMilk, species, health] = await Promise.all([
     prisma.farms.findUnique({ where: { farm_id: id }, include: { units: true } }),
     prisma.animals.count({ where: { farm_id: id, is_active: true } }),
     prisma.units.count({ where: { farm_id: id } }),
-    prisma.milk_logs.aggregate({
-      _sum: { milk_liters: true },
-      where: { animals: { farm_id: id, is_active: true } },
-    }),
+    sumDailyMilkLiters({ farmId: id }),
     prisma.$queryRaw`
       SELECT s.species_name AS label, COUNT(a.animal_id)::int AS value
       FROM species s LEFT JOIN breeds b ON b.species_id=s.species_id
@@ -37,7 +35,7 @@ export async function findById(id: number) {
     stats: {
       animalCount,
       unitCount,
-      dailyMilk: Number(milk._sum.milk_liters ?? 0),
+      dailyMilk,
       species,
       health,
     },

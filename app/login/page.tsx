@@ -23,7 +23,7 @@ type FieldErrors = Record<string, string>;
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = searchParams.get("callbackUrl") || "/animals/dashboard";
   const { theme, toggle } = useTheme();
 
   const [form, setForm] = useState<LoginInput>({ email: "", password: "" });

@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Moon, Sun } from "lucide-react";
+import Link from "next/link";
+import { Moon, Sun, Settings } from "lucide-react";
 import { useTheme } from "@/app/context/theme-context";
+import { routes } from "@/lib/routes";
 
 export function Navbar({
   title,
@@ -43,8 +45,16 @@ export function Navbar({
         <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         {subtitle && <p className="text-sm muted">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-sm muted font-mono">{currentTime}</div>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <div className="hidden sm:block text-sm muted font-mono">{currentTime}</div>
+        <Link
+          href={routes.settings}
+          className="p-2 rounded-lg surface border hover:bg-black/5 dark:hover:bg-white/10"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <Settings size={16} />
+        </Link>
         <button
           onClick={toggle}
           className="p-2 rounded-lg surface border hover:bg-black/5 dark:hover:bg-white/10"

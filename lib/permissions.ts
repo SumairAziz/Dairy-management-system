@@ -1,100 +1,64 @@
 import type { Role } from "@/types";
+import {
+  ASSIGNABLE_ROLES,
+  getRolePermissionMatrix,
+  hasModulePermission,
+  hasPermissionKey,
+  normalizeRole,
+  PERMISSION_MODULES,
+  ROLE_PERMISSION_GRANTS,
+} from "@/lib/rbac/permissions";
 
-type Action = "create" | "read" | "update" | "delete";
-
-const ROLE_PERMISSIONS: Record<Role, Record<string, Action[]>> = {
-  ADMIN: {
-    animals: ["create", "read", "update", "delete"],
-    milk: ["create", "read", "update", "delete"],
-    health: ["create", "read", "update", "delete"],
-    farms: ["create", "read", "update", "delete"],
-    reports: ["create", "read", "update", "delete"],
-    vaccinations: ["create", "read", "update", "delete"],
-    breeding: ["create", "read", "update", "delete"],
-    heatCycles: ["create", "read", "update", "delete"],
-    units: ["create", "read", "update", "delete"],
-    species: ["create", "read", "update", "delete"],
-    breeds: ["create", "read", "update", "delete"],
-    pregnancy: ["create", "read", "update", "delete"],
-    calving: ["create", "read", "update", "delete"],
-  },
-  MANAGER: {
-    animals: ["create", "read", "update", "delete"],
-    milk: ["create", "read", "update", "delete"],
-    health: ["create", "read", "update", "delete"],
-    farms: ["create", "read", "update", "delete"],
-    reports: ["create", "read", "update", "delete"],
-    vaccinations: ["create", "read", "update", "delete"],
-    breeding: ["create", "read", "update", "delete"],
-    heatCycles: ["create", "read", "update", "delete"],
-    units: ["create", "read", "update", "delete"],
-    species: ["create", "read", "update", "delete"],
-    breeds: ["create", "read", "update", "delete"],
-    pregnancy: ["create", "read", "update", "delete"],
-    calving: ["create", "read", "update", "delete"],
-  },
-  VETERINARIAN: {
-    animals: ["read"],
-    milk: ["read"],
-    health: ["create", "read", "update", "delete"],
-    farms: ["read"],
-    reports: ["read"],
-    vaccinations: ["create", "read", "update", "delete"],
-    breeding: ["create", "read", "update", "delete"],
-    heatCycles: ["read"],
-    units: ["read"],
-    species: ["read"],
-    breeds: ["read"],
-    pregnancy: ["create", "read", "update", "delete"],
-    calving: ["create", "read", "update", "delete"],
-  },
-  WORKER: {
-    animals: ["read"],
-    milk: ["create", "read"],
-    health: ["create", "read"],
-    farms: ["read"],
-    reports: ["read"],
-    vaccinations: ["create", "read"],
-    breeding: ["read"],
-    heatCycles: ["read"],
-    units: ["read"],
-    species: ["read"],
-    breeds: ["read"],
-    pregnancy: ["read"],
-    calving: ["read"],
-  },
-  VIEWER: {
-    animals: ["read"],
-    milk: ["read"],
-    health: ["read"],
-    farms: ["read"],
-    reports: ["read"],
-    vaccinations: ["read"],
-    breeding: ["read"],
-    heatCycles: ["read"],
-    units: ["read"],
-    species: ["read"],
-    breeds: ["read"],
-    pregnancy: ["read"],
-    calving: ["read"],
-  },
+export {
+  ASSIGNABLE_ROLES,
+  getRolePermissionMatrix,
+  hasPermissionKey,
+  normalizeRole,
+  PERMISSION_MODULES,
+  ROLE_PERMISSION_GRANTS,
 };
 
+/** Backward-compatible module/action permission check used by API routes. */
 export function hasPermission(
-  userRole: Role,
+  userRole: Role | string,
   module: string,
-  action: string
+  action: string,
 ): boolean {
-  const perms = ROLE_PERMISSIONS[userRole]?.[module];
-  if (!perms) return false;
-  return perms.includes(action as Action);
+  return hasModulePermission(String(userRole), module, action);
 }
 
-export function requireRole(
-  allowedRoles: Role[],
-  userRole: Role
-): boolean {
-  return allowedRoles.includes(userRole);
+export function requireRole(allowedRoles: Role[], userRole: Role | string): boolean {
+  const normalized = normalizeRole(String(userRole));
+  return allowedRoles.includes(normalized);
 }
 
-export { ROLE_PERMISSIONS };
+/** Legacy export — derived from RBAC grants for tests expecting module/action shape. */
+export const ROLE_PERMISSIONS: Record<
+  Role,
+  Record<string, Array<"create" | "read" | "update" | "delete">>
+> = Object.fromEntries(
+  (Object.keys(ROLE_PERMISSION_GRANTS) as Role[]).map((role) => {
+    const modules: Record<string, Array<"create" | "read" | "update" | "delete">> = {};
+    for (const [module, actions] of Object.entries({
+      animals: ["read", "create", "update", "delete"],
+      milk: ["read", "create", "update", "delete"],
+      health: ["read", "create", "update", "delete"],
+      farms: ["read", "create", "update", "delete"],
+      reports: ["read"],
+      vaccinations: ["read", "create", "update", "delete"],
+      breeding: ["read", "create", "update", "delete"],
+      heatCycles: ["read", "create", "update", "delete"],
+      units: ["read", "create", "update", "delete"],
+      species: ["read", "create", "update", "delete"],
+      breeds: ["read", "create", "update", "delete"],
+      pregnancy: ["read", "create", "update", "delete"],
+      calving: ["read", "create", "update", "delete"],
+      inventory: ["read", "create", "update", "delete"],
+    })) {
+      modules[module] = actions.filter((action) =>
+        hasPermission(role, module, action),
+      ) as Array<"create" | "read" | "update" | "delete">;
+    }
+    return [role, modules];
+  }),
+) as Record<Role, Record<string, Array<"create" | "read" | "update" | "delete">>>;

@@ -17,6 +17,11 @@ export async function findAll(params: BreedingQueryParams) {
   if (filters.female_animal_id) where.female_animal_id = filters.female_animal_id;
   if (filters.male_animal_id) where.male_animal_id = filters.male_animal_id;
   if (filters.method) where.method = { contains: filters.method, mode: "insensitive" };
+  if (filters.result === "Pending") {
+    where.OR = [{ result: "Pending" }, { result: null }];
+  } else if (filters.result) {
+    where.result = filters.result;
+  }
 
   const [data, total] = await Promise.all([
     prisma.breeding_records.findMany({

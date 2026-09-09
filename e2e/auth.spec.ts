@@ -8,13 +8,13 @@ test.describe("Authentication guards", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("unauthenticated user is redirected to /login from /animals", async ({ page }) => {
-    await page.goto("/animals");
+  test("unauthenticated user is redirected to /login from /animals/list", async ({ page }) => {
+    await page.goto("/animals/list");
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("unauthenticated user is redirected to /login from /farms", async ({ page }) => {
-    await page.goto("/farms");
+  test("unauthenticated user is redirected to /login from /animals/farms", async ({ page }) => {
+    await page.goto("/animals/farms");
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -82,15 +82,16 @@ test.describe("Register page", () => {
 test.describe("Static page structure (unauthenticated redirect check)", () => {
   const protectedPages = [
     "/",
-    "/animals",
-    "/farms",
-    "/milk-production",
-    "/vaccinations",
-    "/breeding",
-    "/heat-cycles",
-    "/pregnancy",
-    "/units",
-    "/species-breeds",
+    "/animals/dashboard",
+    "/animals/list",
+    "/animals/farms",
+    "/animals/milk-production",
+    "/animals/vaccinations",
+    "/animals/breeding",
+    "/animals/heat-cycles",
+    "/animals/pregnancy",
+    "/animals/units",
+    "/animals/species-breeds",
   ];
 
   for (const path of protectedPages) {

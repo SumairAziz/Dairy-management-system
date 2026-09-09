@@ -153,7 +153,7 @@ export async function triggerWorkflow(
 
   // Notify all admins / managers / vets
   const recipients = await prisma.users.findMany({
-    where: { role: { in: ["ADMIN", "MANAGER", "VETERINARIAN"] }, is_active: true },
+    where: { role: { in: ["ADMIN", "FARM_MANAGER", "VETERINARIAN"] }, is_active: true },
     select: { user_id: true },
   });
 

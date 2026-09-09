@@ -99,16 +99,21 @@
 :root {
   --bg: 250 250 249;
   --surface: 255 255 255;
+  /* One step above --surface, for nested panels/headers that need to read as
+     elevated above their parent card without introducing a new hue. */
+  --surface-2: 245 245 244;
   --text: 17 24 39;
   --muted-color: 107 114 128;
 }
 .dark {
   --bg: 12 15 20;
   --surface: 22 27 34;
+  --surface-2: 30 36 45;
   --text: 237 242 247;
   --muted-color: 148 163 184;
 }
 
 html, body { background: rgb(var(--bg)); color: rgb(var(--text)); }
 .surface { background: rgb(var(--surface)); border-color: hsl(var(--border)); }
+.surface-2 { background: rgb(var(--surface-2)); border-color: hsl(var(--border)); }
 .muted { color: rgb(var(--muted-color)); }

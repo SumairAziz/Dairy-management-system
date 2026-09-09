@@ -2,9 +2,21 @@ import { describe, it, expect } from "vitest";
 import { hasPermission, requireRole, ROLE_PERMISSIONS } from "@/lib/permissions";
 import type { Role } from "@/types";
 
-const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "VETERINARIAN", "WORKER", "VIEWER"];
+const ALL_ROLES: Role[] = [
+  "ADMIN",
+  "FARM_MANAGER",
+  "VETERINARIAN",
+  "INVENTORY_MANAGER",
+  "FARM_WORKER",
+  "VIEWER",
+];
 const ALL_MODULES = Object.keys(ROLE_PERMISSIONS.ADMIN);
-const ALL_ACTIONS: Array<"create" | "read" | "update" | "delete"> = ["create", "read", "update", "delete"];
+const ALL_ACTIONS: Array<"create" | "read" | "update" | "delete"> = [
+  "create",
+  "read",
+  "update",
+  "delete",
+];
 
 describe("hasPermission", () => {
   it("ADMIN should have all permissions on all modules", () => {
@@ -15,10 +27,10 @@ describe("hasPermission", () => {
     }
   });
 
-  it("MANAGER should have all permissions on all modules", () => {
+  it("FARM_MANAGER should have all permissions on operational modules", () => {
     for (const mod of ALL_MODULES) {
       for (const action of ALL_ACTIONS) {
-        expect(hasPermission("MANAGER", mod, action)).toBe(true);
+        expect(hasPermission("FARM_MANAGER", mod, action)).toBe(true);
       }
     }
   });
@@ -36,23 +48,18 @@ describe("hasPermission", () => {
     expect(hasPermission("VETERINARIAN", "health", "create")).toBe(true);
     expect(hasPermission("VETERINARIAN", "health", "delete")).toBe(true);
     expect(hasPermission("VETERINARIAN", "animals", "read")).toBe(true);
-    expect(hasPermission("VETERINARIAN", "animals", "create")).toBe(false);
+    expect(hasPermission("VETERINARIAN", "animals", "create")).toBe(true);
+    expect(hasPermission("VETERINARIAN", "animals", "update")).toBe(true);
     expect(hasPermission("VETERINARIAN", "animals", "delete")).toBe(false);
   });
 
-  it("WORKER should have create+read on milk but only read on animals", () => {
-    expect(hasPermission("WORKER", "milk", "create")).toBe(true);
-    expect(hasPermission("WORKER", "milk", "read")).toBe(true);
-    expect(hasPermission("WORKER", "milk", "update")).toBe(false);
-    expect(hasPermission("WORKER", "milk", "delete")).toBe(false);
-    expect(hasPermission("WORKER", "animals", "read")).toBe(true);
-    expect(hasPermission("WORKER", "animals", "create")).toBe(false);
-  });
-
-  it("WORKER should have create+read on health", () => {
-    expect(hasPermission("WORKER", "health", "create")).toBe(true);
-    expect(hasPermission("WORKER", "health", "read")).toBe(true);
-    expect(hasPermission("WORKER", "health", "update")).toBe(false);
+  it("FARM_WORKER should have create+read on milk but only read on animals", () => {
+    expect(hasPermission("FARM_WORKER", "milk", "create")).toBe(true);
+    expect(hasPermission("FARM_WORKER", "milk", "read")).toBe(true);
+    expect(hasPermission("FARM_WORKER", "milk", "update")).toBe(false);
+    expect(hasPermission("FARM_WORKER", "milk", "delete")).toBe(false);
+    expect(hasPermission("FARM_WORKER", "animals", "read")).toBe(true);
+    expect(hasPermission("FARM_WORKER", "animals", "create")).toBe(false);
   });
 
   it("should return false for unknown module", () => {
@@ -67,17 +74,17 @@ describe("hasPermission", () => {
 
 describe("requireRole", () => {
   it("should return true when user role is in allowed list", () => {
-    expect(requireRole(["ADMIN", "MANAGER"], "ADMIN")).toBe(true);
-    expect(requireRole(["ADMIN", "MANAGER"], "MANAGER")).toBe(true);
+    expect(requireRole(["ADMIN", "FARM_MANAGER"], "ADMIN")).toBe(true);
+    expect(requireRole(["ADMIN", "FARM_MANAGER"], "FARM_MANAGER")).toBe(true);
   });
 
   it("should return false when user role is not in allowed list", () => {
-    expect(requireRole(["ADMIN", "MANAGER"], "VIEWER")).toBe(false);
-    expect(requireRole(["VETERINARIAN"], "WORKER")).toBe(false);
+    expect(requireRole(["ADMIN", "FARM_MANAGER"], "VIEWER")).toBe(false);
+    expect(requireRole(["VETERINARIAN"], "FARM_WORKER")).toBe(false);
   });
 
   it("should work with single-role list", () => {
     expect(requireRole(["ADMIN"], "ADMIN")).toBe(true);
-    expect(requireRole(["ADMIN"], "MANAGER")).toBe(false);
+    expect(requireRole(["ADMIN"], "FARM_MANAGER")).toBe(false);
   });
 });

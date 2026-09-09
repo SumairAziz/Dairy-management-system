@@ -30,6 +30,7 @@ export const breedingQuerySchema = z.object({
   female_animal_id: z.coerce.number().int().positive().optional(),
   male_animal_id: z.coerce.number().int().positive().optional(),
   method: z.string().optional(),
+  result: z.enum(["Success", "Failed", "Pending"]).optional(),
 });
 
 export type CreateBreedingRecordInput = z.infer<

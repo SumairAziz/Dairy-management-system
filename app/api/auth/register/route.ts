@@ -3,20 +3,23 @@ import { registerSchema } from "@/validators/auth.validator";
 import { register } from "@/services/auth.service";
 import { createdResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/errors";
-import { ConflictError } from "@/lib/errors";
+import { ConflictError, ForbiddenError } from "@/lib/errors";
 import { log as auditLog } from "@/services/audit.service";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const parsed = registerSchema.safeParse(body);
+    const parsed = registerSchema.safeParse({
+      ...body,
+      role: "FARM_WORKER",
+    });
 
     if (!parsed.success) {
-      const details = parsed.error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      }));
       return errorResponse("VALIDATION_ERROR", "Invalid request data", 400);
+    }
+
+    if (body?.role && body.role !== "FARM_WORKER") {
+      throw new ForbiddenError("Public registration is limited to farm worker accounts.");
     }
 
     try {

@@ -35,6 +35,9 @@ export const vaccinationQuerySchema = z.object({
   upcoming: z.enum(["true", "false"]).optional(),
   source: z.string().optional(),
   pregnancy_id: z.coerce.number().int().positive().optional(),
+  status: z.enum(["overdue", "due_today", "due_soon", "upcoming", "completed"]).optional(),
+  animal_search: z.string().optional(),
+  vaccine_search: z.string().optional(),
 });
 
 export type CreateVaccinationInput = z.infer<typeof createVaccinationSchema>;

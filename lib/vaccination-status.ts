@@ -130,35 +130,35 @@ export interface StatusStyle {
   label: string;
   /** Tailwind classes for a pill/badge. */
   badgeClass: string;
-  /** Hex colour for inline elements (dots, etc.). */
-  dotColor: string;
+  /** Tailwind class for a small status dot. */
+  dot: string;
 }
 
 const RECORD_STATUS_STYLES: Record<VaccinationRecordStatus, StatusStyle> = {
   overdue: {
     label: "Overdue",
     badgeClass: "bg-rose-500/15 text-rose-500 dark:text-rose-400",
-    dotColor: "#f43f5e",
+    dot: "bg-rose-400",
   },
   due_today: {
     label: "Due Today",
     badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    dotColor: "#f59e0b",
+    dot: "bg-amber-500",
   },
   due_soon: {
     label: "Due in 7 Days",
-    badgeClass: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-    dotColor: "#eab308",
+    badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-400",
   },
   upcoming: {
     label: "Upcoming",
     badgeClass: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
-    dotColor: "#0ea5e9",
+    dot: "bg-sky-400",
   },
   completed: {
     label: "Completed",
     badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    dotColor: "#10b981",
+    dot: "bg-emerald-400",
   },
 };
 
@@ -166,22 +166,22 @@ const ANIMAL_STATUS_STYLES: Record<AnimalVaccinationStatus, StatusStyle> = {
   never_vaccinated: {
     label: "Never Vaccinated",
     badgeClass: "bg-slate-500/15 text-slate-500 dark:text-slate-400",
-    dotColor: "#64748b",
+    dot: "bg-slate-400",
   },
   vaccinated: {
     label: "Vaccinated",
     badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    dotColor: "#10b981",
+    dot: "bg-emerald-400",
   },
   due_for_vaccination: {
     label: "Due for Vaccination",
     badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    dotColor: "#f59e0b",
+    dot: "bg-amber-500",
   },
   overdue: {
     label: "Overdue",
     badgeClass: "bg-rose-500/15 text-rose-500 dark:text-rose-400",
-    dotColor: "#f43f5e",
+    dot: "bg-rose-400",
   },
 };
 
@@ -195,4 +195,56 @@ export function animalStatusStyle(
   status: AnimalVaccinationStatus,
 ): StatusStyle {
   return ANIMAL_STATUS_STYLES[status];
+}
+
+/**
+ * Server-side counts for dashboard tiles and the vaccinations overview.
+ */
+export async function countVaccinationRecordsByStatus(
+  count: (where: Record<string, unknown>) => Promise<number>,
+  now: Date = new Date(),
+): Promise<Record<VaccinationRecordStatus, number>> {
+  const statuses: VaccinationRecordStatus[] = [
+    "overdue",
+    "due_today",
+    "due_soon",
+    "upcoming",
+    "completed",
+  ];
+  const entries = await Promise.all(
+    statuses.map(async (status) => [
+      status,
+      await count(buildVaccinationStatusWhere(status, now)),
+    ] as const),
+  );
+  return Object.fromEntries(entries) as Record<VaccinationRecordStatus, number>;
+}
+
+/**
+ * Server-side equivalent of `getVaccinationRecordStatus()`, expressed as a
+ * Prisma `where` fragment. Used by the `/vaccinations?status=` drill-down filter.
+ */
+export function buildVaccinationStatusWhere(
+  status: VaccinationRecordStatus,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const today = todayDateString(now);
+  const todayStart = new Date(`${today}T00:00:00`);
+  const tomorrowStart = new Date(`${addDaysToDate(today, 1)}T00:00:00`);
+  const soonEndExclusive = new Date(
+    `${addDaysToDate(today, DUE_SOON_WINDOW_DAYS + 1)}T00:00:00`,
+  );
+
+  switch (status) {
+    case "completed":
+      return { next_due_date: null };
+    case "overdue":
+      return { next_due_date: { lt: todayStart } };
+    case "due_today":
+      return { next_due_date: { gte: todayStart, lt: tomorrowStart } };
+    case "due_soon":
+      return { next_due_date: { gte: tomorrowStart, lt: soonEndExclusive } };
+    case "upcoming":
+      return { next_due_date: { gte: soonEndExclusive } };
+  }
 }

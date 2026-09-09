@@ -34,3 +34,13 @@ export function useLogout() {
     mutationFn: () => signOut({ redirect: false }),
   });
 }
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (data: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    }) => api.post<{ success: boolean }>("/auth/change-password", data),
+  });
+}

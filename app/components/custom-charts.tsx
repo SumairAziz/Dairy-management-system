@@ -1,6 +1,10 @@
 "use client";
 import { useId, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import type { Tone, ModuleId } from "@/lib/theme";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -9,19 +13,7 @@ const PALETTE = [
   "#f59e0b", "#84cc16",
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  Healthy: "#10b981", Recovering: "#f59e0b",
-  "Under Treatment": "#f59e0b", Sick: "#ef4444",
-  Critical: "#ef4444", Injured: "#ef4444",
-  Monitored: "#6366f1", Deceased: "#6b7280",
-  Pending: "#f59e0b", Confirmed: "#3b82f6",
-  "In Progress": "#8b5cf6", Pregnant: "#ec4899",
-  Delivered: "#10b981", Failed: "#ef4444",
-  Success: "#10b981", Open: "#f59e0b", Closed: "#10b981",
-};
-
 export function chartColor(index: number): string { return PALETTE[index % PALETTE.length]; }
-export function statusColor(label: string): string { return STATUS_COLORS[label] || PALETTE[0]; }
 
 // ─── Shared hooks ─────────────────────────────────────────────────────────────
 function useMounted(delay = 80) {
@@ -82,24 +74,70 @@ export function EmptyState({
   );
 }
 
+const METRIC_CARD_GLOW: Record<Tone | ModuleId, string> = {
+  success: "hover:border-emerald-500/40 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_10px_28px_-10px_rgba(16,185,129,0.4)]",
+  warning: "hover:border-amber-500/40 hover:shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_10px_28px_-10px_rgba(245,158,11,0.4)]",
+  danger: "hover:border-red-500/40 hover:shadow-[0_0_0_1px_rgba(239,68,68,0.25),0_10px_28px_-10px_rgba(239,68,68,0.4)]",
+  info: "hover:border-blue-500/40 hover:shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_10px_28px_-10px_rgba(59,130,246,0.4)]",
+  neutral: "hover:border-slate-500/40 hover:shadow-[0_0_0_1px_rgba(148,163,184,0.25),0_10px_28px_-10px_rgba(148,163,184,0.4)]",
+  dashboard: "hover:border-brand-500/40 hover:shadow-[0_0_0_1px_rgba(20,184,166,0.25),0_10px_28px_-10px_rgba(20,184,166,0.4)]",
+  animals: "hover:border-emerald-500/40 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_10px_28px_-10px_rgba(16,185,129,0.4)]",
+  milk: "hover:border-sky-500/40 hover:shadow-[0_0_0_1px_rgba(14,165,233,0.25),0_10px_28px_-10px_rgba(14,165,233,0.4)]",
+  vaccinations: "hover:border-amber-500/40 hover:shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_10px_28px_-10px_rgba(245,158,11,0.4)]",
+  breeding: "hover:border-pink-500/40 hover:shadow-[0_0_0_1px_rgba(236,72,153,0.25),0_10px_28px_-10px_rgba(236,72,153,0.4)]",
+  heat: "hover:border-orange-500/40 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_10px_28px_-10px_rgba(249,115,22,0.4)]",
+  pregnancy: "hover:border-purple-500/40 hover:shadow-[0_0_0_1px_rgba(168,85,247,0.25),0_10px_28px_-10px_rgba(168,85,247,0.4)]",
+  calving: "hover:border-green-500/40 hover:shadow-[0_0_0_1px_rgba(34,197,94,0.25),0_10px_28px_-10px_rgba(34,197,94,0.4)]",
+  inventory: "hover:border-indigo-500/40 hover:shadow-[0_0_0_1px_rgba(99,102,241,0.25),0_10px_28px_-10px_rgba(99,102,241,0.4)]",
+};
+
 // ─── MetricCard ───────────────────────────────────────────────────────────────
 export function MetricCard({
-  label, value, hint, icon,
+  label, value, hint, icon, href, tooltip, tone,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
   icon?: ReactNode;
+  /** When set, the whole card becomes a drill-down link (hover glow + "View details" affordance). */
+  href?: string;
+  /** Overrides the hover tooltip text (defaults to "View details" when href is set). */
+  tooltip?: string;
+  /** Tints the hover glow to match a semantic tone or module identity. Defaults to the brand teal used today. */
+  tone?: Tone | ModuleId;
 }) {
-  return (
-    <div className="surface border rounded-2xl p-5 flex flex-col gap-2 hover:border-white/20 dark:hover:border-white/15 transition-colors duration-200">
+  const body = (
+    <>
       <div className="flex items-center justify-between">
         <span className="text-xs uppercase tracking-wider muted">{label}</span>
         {icon}
       </div>
       <div className="text-3xl font-semibold tracking-tight">{value}</div>
       {hint && <div className="text-xs muted">{hint}</div>}
-    </div>
+      {href && (
+        <div className="flex items-center gap-0.5 text-[11px] font-medium text-brand-500 opacity-0 group-hover:opacity-100 transition-opacity">
+          View details <ChevronRight size={12} />
+        </div>
+      )}
+    </>
+  );
+
+  if (!href) {
+    return (
+      <div className="surface border rounded-2xl p-5 flex flex-col gap-2 hover:border-white/20 dark:hover:border-white/15 transition-colors duration-200">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      title={tooltip ?? "View details"}
+      className={`group surface border rounded-2xl p-5 flex flex-col gap-2 cursor-pointer transition-all duration-200 ${METRIC_CARD_GLOW[tone ?? "dashboard"]}`}
+    >
+      {body}
+    </Link>
   );
 }
 
@@ -108,11 +146,12 @@ export function BarChart({
   data,
   height = 220,
 }: {
-  data: { label: string; value: number }[];
+  data: { label: string; value: number; href?: string; color?: string }[];
   height?: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const mounted = useMounted(100);
+  const router = useRouter();
 
   if (!data.length) return <EmptyState />;
 
@@ -169,10 +208,16 @@ export function BarChart({
         const y = padT + innerH - bh;
         const bwActual = bw * 0.64;
         const isHov = hover === i;
-        const col = PALETTE[i % PALETTE.length];
+        const col = d.color ?? PALETTE[i % PALETTE.length];
 
         return (
-          <g key={i} onMouseEnter={() => setHover(i)} style={{ cursor: "pointer" }}>
+          <g
+            key={i}
+            onMouseEnter={() => setHover(i)}
+            onClick={() => d.href && router.push(d.href)}
+            style={{ cursor: "pointer" }}
+          >
+            {d.href && <title>View details</title>}
             {/* Bar */}
             <path
               d={roundedTopPath(x, y, bwActual, bh, 5)}
@@ -186,8 +231,8 @@ export function BarChart({
                 d={roundedTopPath(x - 1, y - 1, bwActual + 2, bh + 1, 5)}
                 fill="none"
                 stroke={col}
-                strokeWidth="1"
-                opacity="0.4"
+                strokeWidth={d.href ? 1.5 : 1}
+                opacity={d.href ? 0.65 : 0.4}
               />
             )}
             {/* Value label */}
@@ -237,14 +282,24 @@ export function LineChart({
   data,
   height = 220,
   yLabel,
+  color = "#14b8a6",
+  colorFrom = "#0d9488",
+  colorTo = "#2dd4bf",
 }: {
-  data: { label: string; value: number }[];
+  data: { label: string; value: number; href?: string }[];
   height?: number;
   yLabel?: string;
+  /** Area fill / dot / crosshair color, defaults to the brand teal used today. */
+  color?: string;
+  /** Line-stroke gradient start, defaults to the brand teal used today. */
+  colorFrom?: string;
+  /** Line-stroke gradient end, defaults to the brand teal used today. */
+  colorTo?: string;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const mounted = useMounted(120);
   const id = useId();
+  const router = useRouter();
 
   if (!data.length) return <EmptyState />;
 
@@ -299,13 +354,13 @@ export function LineChart({
     >
       <defs>
         <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.28" />
-          <stop offset="80%" stopColor="#14b8a6" stopOpacity="0.02" />
-          <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+          <stop offset="80%" stopColor={color} stopOpacity="0.02" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
         <linearGradient id={`${id}-line`} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="#0d9488" />
-          <stop offset="100%" stopColor="#2dd4bf" />
+          <stop offset="0%" stopColor={colorFrom} />
+          <stop offset="100%" stopColor={colorTo} />
         </linearGradient>
       </defs>
 
@@ -369,18 +424,30 @@ export function LineChart({
 
       {/* Data point dots */}
       {pts.map((p, i) => (
-        <circle
-          key={`dot${i}`}
-          cx={p.x} cy={p.y}
-          r={hoverIdx === i ? 5.5 : 3}
-          fill={hoverIdx === i ? "#14b8a6" : "rgb(var(--surface, 15 23 42))"}
-          stroke={hoverIdx === i ? "#2dd4bf" : "#0d9488"}
-          strokeWidth={hoverIdx === i ? 2.5 : 1.5}
-          style={{
-            opacity: mounted ? 1 : 0,
-            transition: "r 0.15s ease, stroke-width 0.15s ease, fill 0.15s ease",
-          }}
-        />
+        <g key={`dot${i}`}>
+          <circle
+            cx={p.x} cy={p.y}
+            r={hoverIdx === i ? 5.5 : 3}
+            fill={hoverIdx === i ? color : "rgb(var(--surface, 15 23 42))"}
+            stroke={hoverIdx === i ? colorTo : colorFrom}
+            strokeWidth={hoverIdx === i ? 2.5 : 1.5}
+            style={{
+              opacity: mounted ? 1 : 0,
+              transition: "r 0.15s ease, stroke-width 0.15s ease, fill 0.15s ease",
+            }}
+          />
+          {/* Larger invisible hit area so a clickable point is easy to hit */}
+          {p.href && (
+            <circle
+              cx={p.x} cy={p.y} r={10}
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onClick={() => router.push(p.href!)}
+            >
+              <title>View details</title>
+            </circle>
+          )}
+        </g>
       ))}
 
       {/* Crosshair + tooltip */}
@@ -392,7 +459,7 @@ export function LineChart({
             {/* Vertical crosshair */}
             <line
               x1={hovPt.x} y1={padT} x2={hovPt.x} y2={padT + innerH}
-              stroke="#14b8a6" strokeWidth="1" strokeDasharray="4,3" opacity="0.35"
+              stroke={color} strokeWidth="1" strokeDasharray="4,3" opacity="0.35"
             />
             {/* Tooltip */}
             <rect
@@ -420,11 +487,12 @@ export function PieChart({
   data,
   size = 200,
 }: {
-  data: { label: string; value: number }[];
+  data: { label: string; value: number; href?: string; color?: string }[];
   size?: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const mounted = useMounted(80);
+  const router = useRouter();
 
   if (!data.length) return <EmptyState />;
 
@@ -459,10 +527,11 @@ export function PieChart({
 
     return {
       path,
-      color: PALETTE[i % PALETTE.length],
+      color: d.color ?? PALETTE[i % PALETTE.length],
       label: d.label,
       value: d.value,
       pct: (d.value / total) * 100,
+      href: d.href,
     };
   });
 
@@ -487,7 +556,10 @@ export function PieChart({
             }}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
-          />
+            onClick={() => a.href && router.push(a.href)}
+          >
+            {a.href && <title>View details</title>}
+          </path>
         ))}
 
         {/* Center label */}
@@ -538,6 +610,8 @@ export function PieChart({
             className="flex items-center gap-2.5"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
+            onClick={() => a.href && router.push(a.href)}
+            title={a.href ? "View details" : undefined}
             style={{
               cursor: "pointer",
               opacity: hover === null || hover === i ? 1 : 0.45,
@@ -561,9 +635,18 @@ export function PieChart({
 }
 
 // ─── CapacityGauge ────────────────────────────────────────────────────────────
-export function CapacityGauge({ value, max }: { value: number; max: number }) {
+export function CapacityGauge({
+  value,
+  max,
+  color: colorOverride,
+}: {
+  value: number;
+  max: number;
+  /** Overrides the default 3-tier teal/amber/red threshold coloring. */
+  color?: string;
+}) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
-  const color = pct < 70 ? "#14b8a6" : pct < 90 ? "#f59e0b" : "#ef4444";
+  const color = colorOverride ?? (pct < 70 ? "#14b8a6" : pct < 90 ? "#f59e0b" : "#ef4444");
   const mounted = useMounted();
   return (
     <div className="space-y-2">
@@ -623,11 +706,13 @@ export function MiniDonut({
   max,
   size = 80,
   color,
+  href,
 }: {
   value: number;
   max: number;
   size?: number;
   color?: string;
+  href?: string;
 }) {
   const pct = max ? Math.min(1, value / max) : 0;
   const r = size / 2 - 9;
@@ -638,11 +723,8 @@ export function MiniDonut({
     color || (pct < 0.7 ? "#14b8a6" : pct < 0.9 ? "#f59e0b" : "#ef4444");
   const mounted = useMounted(150);
 
-  return (
-    <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
-    >
+  const body = (
+    <>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {/* Track */}
         <circle
@@ -667,7 +749,29 @@ export function MiniDonut({
           {(pct * 100).toFixed(0)}%
         </span>
       </div>
-    </div>
+    </>
+  );
+
+  if (!href) {
+    return (
+      <div
+        className="relative inline-flex items-center justify-center"
+        style={{ width: size, height: size }}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      title="View details"
+      className="relative inline-flex items-center justify-center cursor-pointer"
+      style={{ width: size, height: size }}
+    >
+      {body}
+    </Link>
   );
 }
 
@@ -677,17 +781,19 @@ export function HorizontalBar({
   value,
   max,
   color,
+  href,
 }: {
   label: string;
   value: number;
   max: number;
   color?: string;
+  href?: string;
 }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
   const barColor = color || (pct < 70 ? "#14b8a6" : pct < 90 ? "#f59e0b" : "#ef4444");
   const mounted = useMounted();
 
-  return (
+  const body = (
     <div className="space-y-1.5">
       <div className="flex justify-between items-center text-sm">
         <span className="truncate max-w-[150px] font-medium">{label}</span>
@@ -712,5 +818,17 @@ export function HorizontalBar({
         />
       </div>
     </div>
+  );
+
+  if (!href) return body;
+
+  return (
+    <Link
+      href={href}
+      title="View details"
+      className="block rounded-lg -m-1.5 p-1.5 cursor-pointer transition-colors hover:bg-brand-500/5"
+    >
+      {body}
+    </Link>
   );
 }

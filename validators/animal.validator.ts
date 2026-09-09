@@ -47,7 +47,7 @@ export const updateAnimalSchema = z.object({
   breed_id: z.number().int().positive().nullable().optional(),
   mother_id: z.number().int().positive().nullable().optional(),
   father_id: z.number().int().positive().nullable().optional(),
-  date_of_birth: z.string().nullable().optional(),
+  date_of_birth: z.string().min(1).optional(),
   birth_weight_kg: z.number().positive().nullable().optional(),
 });
 
@@ -64,6 +64,16 @@ export const animalQuerySchema = z.object({
   lifecycle_stage: z.string().optional(),
   tag_number: z.string().optional(),
   is_active: z.enum(["true", "false"]).optional(),
+  // Derived/relational filters used by the Animals page dashboard's quick-filter chips.
+  pregnancy_status: z.enum(["PREGNANT", "CALVED", "FAILED"]).optional(),
+  in_heat: z.enum(["true"]).optional(),
+  breeding_eligible: z.enum(["true"]).optional(),
+  vaccination_due: z.enum(["true"]).optional(),
+  has_health_issue: z.enum(["true"]).optional(),
+  stage_bucket: z.enum(["Calves", "Heifers", "Adults", "Seniors"]).optional(),
+  production_status: z
+    .enum(["lactating", "dry", "never_lactated", "not_applicable"])
+    .optional(),
 });
 
 export const animalIdParamSchema = z.object({

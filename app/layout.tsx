@@ -2,6 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/app/context/theme-context";
 import { QueryProvider } from "@/lib/query-provider";
+import { AuthProvider } from "@/lib/auth-provider";
+import { ExportToastProvider } from "@/components/export/ExportToastProvider";
 import { Sidebar } from "@/app/components/sidebar";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -27,12 +29,16 @@ export default function RootLayout({
     >
       <body className="antialiased">
         <QueryProvider>
-          <ThemeProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-1 min-w-0">{children}</main>
-            </div>
-          </ThemeProvider>
+          <AuthProvider>
+            <ExportToastProvider>
+              <ThemeProvider>
+              <div className="flex min-h-screen">
+                <Sidebar />
+                <main className="flex-1 min-w-0">{children}</main>
+              </div>
+              </ThemeProvider>
+            </ExportToastProvider>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

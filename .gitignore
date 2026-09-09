@@ -34,6 +34,17 @@ build/
 .env.local
 .env.*
 
+# Next.js build output
+.next/
+
+# Test artifacts
+playwright-report/
+test-results/
+tsconfig.tsbuildinfo
+
+# Chat uploads (local storage)
+uploads/
+
 # IDE
 .vscode/
 .idea/

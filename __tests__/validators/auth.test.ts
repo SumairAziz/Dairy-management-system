@@ -34,22 +34,34 @@ describe("loginSchema", () => {
 });
 
 describe("registerSchema", () => {
-  const valid = { name: "John Doe", email: "john@test.com", password: "password123", role: "VIEWER" };
+  const valid = {
+    name: "John Doe",
+    email: "john@test.com",
+    password: "password123",
+    role: "FARM_WORKER",
+  };
 
   it("should accept valid registration data", () => {
     const result = registerSchema.safeParse(valid);
     expect(result.success).toBe(true);
   });
 
-  it("should default role to VIEWER when omitted", () => {
+  it("should default role to FARM_WORKER when omitted", () => {
     const { role, ...withoutRole } = valid;
     const result = registerSchema.safeParse(withoutRole);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.role).toBe("VIEWER");
+    if (result.success) expect(result.data.role).toBe("FARM_WORKER");
   });
 
   it("should accept all valid roles", () => {
-    for (const role of ["ADMIN", "MANAGER", "VETERINARIAN", "WORKER", "VIEWER"]) {
+    for (const role of [
+      "ADMIN",
+      "FARM_MANAGER",
+      "VETERINARIAN",
+      "INVENTORY_MANAGER",
+      "FARM_WORKER",
+      "VIEWER",
+    ]) {
       const result = registerSchema.safeParse({ ...valid, role });
       expect(result.success).toBe(true);
     }

@@ -28,6 +28,7 @@ export const pregnancyQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(1000).default(20),
   animal_id: z.coerce.number().int().positive().optional(),
   status: z.string().optional(),
+  confirmed: z.enum(["yes", "no"]).optional(),
 });
 
 export type CreatePregnancyRecordInput = z.infer<

@@ -36,3 +36,25 @@ export async function findById(id: number): Promise<AuthUser | null> {
   if (!user) return null;
   return { id: user.user_id, email: user.email, name: user.name, role: user.role as Role };
 }
+
+export async function changePassword(
+  userId: number,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await prisma.users.findUnique({ where: { user_id: userId } });
+  if (!user?.password_hash) {
+    throw new Error("INVALID_CURRENT_PASSWORD");
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!isValid) {
+    throw new Error("INVALID_CURRENT_PASSWORD");
+  }
+
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  await prisma.users.update({
+    where: { user_id: userId },
+    data: { password_hash },
+  });
+}

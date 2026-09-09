@@ -5,6 +5,7 @@ import type {
   UpdateUnitInput,
 } from "@/validators/units.validator";
 import { NotFoundError } from "@/lib/errors";
+import { dailyMilkByAnimalIds, sumDailyMilkLiters } from "@/lib/milk-daily";
 
 export async function findAll(farmId?: number) {
   const data = await prisma.units.findMany({
@@ -22,40 +23,40 @@ export async function findById(id: number) {
   });
   if (!unit) throw new NotFoundError("Unit");
 
-  const [animals, milk, lifecycle] = await Promise.all([
-    prisma.animals.findMany({
-      where: { unit_id: id, is_active: true },
-      include: {
-        breeds: { include: { species: true } },
-        health_incidents: { orderBy: { incident_id: "desc" }, take: 1 },
-        vaccination_records: { orderBy: { vaccination_id: "desc" }, take: 1 },
-        growth_logs: { orderBy: { recorded_date: "desc" }, take: 1 },
-        pregnancy_records: { orderBy: { pregnancy_id: "desc" }, take: 1 },
-        heat_cycle_records: { orderBy: { heat_cycle_id: "desc" }, take: 1 },
-        milk_logs: {
-          orderBy: { production_date: "desc" },
-          take: 1,
-        },
-      },
-    }),
-    prisma.milk_logs.aggregate({
-      _sum: { milk_liters: true },
-      where: { animals: { unit_id: id, is_active: true } },
-    }),
+  const animals = await prisma.animals.findMany({
+    where: { unit_id: id, is_active: true },
+    include: {
+      breeds: { include: { species: true } },
+      health_incidents: { orderBy: { incident_id: "desc" }, take: 1 },
+      vaccination_records: { orderBy: { vaccination_id: "desc" }, take: 1 },
+      growth_logs: { orderBy: { recorded_date: "desc" }, take: 1 },
+      pregnancy_records: { orderBy: { pregnancy_id: "desc" }, take: 1 },
+      heat_cycle_records: { orderBy: { heat_cycle_id: "desc" }, take: 1 },
+    },
+  });
+
+  const [dailyMilk, lifecycle, milkByAnimal] = await Promise.all([
+    sumDailyMilkLiters({ unitId: id }),
     prisma.animals.groupBy({
       by: ["lifecycle_stage"],
       _count: true,
       where: { unit_id: id, is_active: true },
     }),
+    dailyMilkByAnimalIds(animals.map((a) => a.animal_id)),
   ]);
+
+  const animalsWithDailyMilk = animals.map((animal) => ({
+    ...animal,
+    daily_milk_liters: milkByAnimal.get(animal.animal_id) ?? null,
+  }));
 
   return serialize({
     unit,
-    animals,
+    animals: animalsWithDailyMilk,
     stats: {
       occupancy: animals.length,
       maxCapacity: unit.capacity ?? 0,
-      dailyMilk: Number(milk._sum.milk_liters ?? 0),
+      dailyMilk,
       lifecycle,
     },
   });

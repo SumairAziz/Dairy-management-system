@@ -12,3 +12,5 @@ export * from "./breeds.validator";
 export * from "./growth-logs.validator";
 export * from "./health-incidents.validator";
 export * from "./calving.validator";
+export * from "./inventory.validator";
+export * from "./group-treatment.validator";
