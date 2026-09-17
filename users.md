@@ -1,6 +1,6 @@
 ADMIN
-Email: admin@terradairy.local
-Password: TD_Admin_2026!
+Email: 123misaliravian@gmail.com
+Password: _uYx.*DA6qZ!#dk
 
 FARM MANAGER
 Email: manager@terradairy.local
