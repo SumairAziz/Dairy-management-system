@@ -276,7 +276,7 @@ terradairy/
 
 TerraDairy uses NextAuth v4 with a credentials-based authentication provider and JWT session strategy. The configuration in `lib/auth.ts` specifies:
 
-- **Provider**: `CredentialsProvider` accepting `email` and `password`. The `authorize` callback looks up the user by email in the `users` table, compares the password hash using `bcryptjs`, and returns a user object with `id`, `email`, `name`, and `role`.
+- **Provider**: `CredentialsProvider` accepting `email` and `password`. The `authorize` callback looks up the user by email in the `users` table, compares the password hash using `bcryptjs`, and returns a user object with `id`, `email`, `name`, and `role`.       
 - **Session strategy**: `"jwt"` — no server-side session store. The JWT token contains `userId` (number) and `role` (string), injected via the `jwt` callback and exposed on `session.user` via the `session` callback.
 - **Type augmentation**: The `next-auth` and `next-auth/jwt` modules are extended to declare the custom `id`, `role` (on User and Session) and `userId`, `role` (on JWT) properties.
 
