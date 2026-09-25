@@ -8,3 +8,10 @@ Explored IoT integration with milking machines for automatic animal identificati
 Researched ESP32, RFID, sensors, and prototype hardware for the planned IoT component.
 Planned to move major frontend calculations to the backend to improve performance and consistency.
 Expanded TerraDairy's long-term direction toward an integrated dairy management, AI, and IoT platform.
+
+
+
+newly added feature:
+AI-Powered Animal Intelligence & Predictive Analysis
+
+A feature that allows farmers to enter an animal's tag number or name and automatically retrieve its complete history. TerraDairy processes the animal's historical data through trained machine-learning models to identify health and performance patterns, while an AI layer converts the results into simple, human-understandable insights for the farmer.
