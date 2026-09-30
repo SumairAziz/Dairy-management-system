@@ -571,4 +571,4 @@ Dependencies present in `package.json` without direct application imports found:
 1. After **`prisma generate`** or schema changes, **restart `npm run dev`** — Prisma Client is cached in `globalThis` during development (`lib/db.ts`).
 2. Set **`NEXTAUTH_URL`** to the port your dev server actually uses (typically `http://localhost:3000`).
 3. The AI assistant requires configured **`OPENAI_API_KEY`** and/or **`GEMINI_API_KEY`** depending on `AI_PROVIDER`; web grounding requires Gemini.
-4. This document reflects the codebase as inspected; re-verify after major dependency or architecture changes
+4. This document reflects the codebase as inspected; re-verify after major dependency or architecture changes.
