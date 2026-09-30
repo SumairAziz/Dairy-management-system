@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Moon, Sun, Settings } from "lucide-react";
+import { Moon, Sun, Settings, LayoutDashboard, EyeOff } from "lucide-react";
 import { useTheme } from "@/app/context/theme-context";
+import { useDashboardVisibility } from "@/app/context/dashboard-context";
 import { routes } from "@/lib/routes";
 
 export function Navbar({
@@ -13,6 +14,7 @@ export function Navbar({
   subtitle?: string;
 }) {
   const { theme, toggle } = useTheme();
+  const { showGlobalDashboards, toggleGlobalDashboards } = useDashboardVisibility();
   const [currentTime, setCurrentTime] = useState<string>("");
 
   useEffect(() => {
@@ -47,6 +49,19 @@ export function Navbar({
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="hidden sm:block text-sm muted font-mono">{currentTime}</div>
+        <button
+          onClick={toggleGlobalDashboards}
+          className={`px-2.5 py-1.5 rounded-lg surface border hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-1.5 text-xs font-medium transition-colors ${
+            !showGlobalDashboards ? "text-amber-500 border-amber-500/30 bg-amber-500/10" : ""
+          }`}
+          aria-label={showGlobalDashboards ? "Hide all page dashboards" : "Show all page dashboards"}
+          title={showGlobalDashboards ? "Hide all page dashboards" : "Show all page dashboards"}
+        >
+          {showGlobalDashboards ? <LayoutDashboard size={15} /> : <EyeOff size={15} />}
+          <span className="hidden md:inline">
+            {showGlobalDashboards ? "Hide Dashboards" : "Show Dashboards"}
+          </span>
+        </button>
         <Link
           href={routes.settings}
           className="p-2 rounded-lg surface border hover:bg-black/5 dark:hover:bg-white/10"

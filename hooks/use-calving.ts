@@ -52,3 +52,19 @@ export function useDeleteCalving() {
     },
   });
 }
+
+export interface CalvingStats {
+  total: number;
+  liveBirths: number;
+  twins: number;
+  thisMonth: number;
+  heifers: number;
+  bulls: number;
+}
+
+export function useCalvingStats() {
+  return useQuery({
+    queryKey: ["calving", "stats"],
+    queryFn: () => api.get<CalvingStats>("/calving/stats"),
+  });
+}

@@ -69,11 +69,7 @@ export async function seedRbacUsers() {
     console.log(`✓ ${entry.role.padEnd(18)} ${user.email}`);
   }
 
-  console.log("\nDevelopment credentials (local/dev only):");
-  for (const entry of DEV_USERS) {
-    console.log(`  ${entry.role}: ${entry.email} / ${entry.password}`);
-  }
-  console.log("");
+  console.log("\nDevelopment RBAC users are ready.");
 }
 
 seedRbacUsers()

@@ -238,15 +238,14 @@ export async function getStats() {
   }
 
   const todayProduction = Number(todayData._sum.milk_liters ?? 0);
-  const animalsMilkedToday = await prisma.milk_logs.findMany({
+  const milkedGroup = await prisma.milk_logs.groupBy({
+    by: ["animal_id"],
     where: {
       production_date: { equals: today },
       animals: eligibleAnimalFilter,
     },
-    distinct: ["animal_id"],
-    select: { animal_id: true },
   });
-  const animalCount = animalsMilkedToday.length;
+  const animalCount = milkedGroup.length;
   const avgYield =
     lactatingAnimalCount > 0 ? todayProduction / lactatingAnimalCount : 0;
   const monthlyProduction = Number(monthlyData._sum.milk_liters ?? 0);

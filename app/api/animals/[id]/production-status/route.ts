@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const body = await req.json();
     const parsed = productionStatusActionSchema.parse(body);
     const result = await lactationService.applyProductionStatusAction(id, parsed);
-    await auditLog(user.id, "animals", id, "UPDATE", null, {
+    await auditLog(user.id, "animals", id, "UPDATE", undefined, {
       production_action: parsed.action,
       start_date: parsed.start_date ?? null,
     });

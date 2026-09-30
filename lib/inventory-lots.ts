@@ -280,3 +280,44 @@ export async function getPrimaryLotSummary(itemId: number) {
     supplier: primary.supplier,
   };
 }
+
+export async function getPrimaryLotSummaries(itemIds: number[]) {
+  if (itemIds.length === 0) return new Map<number, {
+    lot_id: number;
+    lot_number: string | null;
+    remaining_quantity: number;
+    expiry_date: string | null;
+    supplier: string | null;
+  }>();
+
+  const lots = await prisma.inventory_lots.findMany({
+    where: {
+      item_id: { in: itemIds },
+      is_active: true,
+      remaining_quantity: { gt: 0 },
+    },
+    orderBy: FEFO_LOT_ORDER,
+  });
+
+  const map = new Map<number, {
+    lot_id: number;
+    lot_number: string | null;
+    remaining_quantity: number;
+    expiry_date: string | null;
+    supplier: string | null;
+  }>();
+
+  for (const lot of lots) {
+    if (!map.has(lot.item_id)) {
+      map.set(lot.item_id, {
+        lot_id: lot.lot_id,
+        lot_number: lot.lot_number,
+        remaining_quantity: Number(lot.remaining_quantity),
+        expiry_date: lot.expiry_date?.toISOString().slice(0, 10) ?? null,
+        supplier: lot.supplier,
+      });
+    }
+  }
+
+  return map;
+}

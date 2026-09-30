@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ASSIGNABLE_ROLES } from "@/lib/rbac/permissions";
 
-const roleSchema = z.enum(ASSIGNABLE_ROLES as [string, ...string[]]);
+const roleSchema = z.string().refine((value) => ASSIGNABLE_ROLES.includes(value as (typeof ASSIGNABLE_ROLES)[number]), "Invalid role");
 
 export const createUserSchema = z.object({
   name: z.string().min(1).max(100),

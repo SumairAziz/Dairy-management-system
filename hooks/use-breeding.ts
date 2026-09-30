@@ -60,3 +60,19 @@ export function useDeleteBreedingRecord() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["breeding-records"] }),
   });
 }
+
+export interface BreedingStats {
+  total: number;
+  natural: number;
+  ai: number;
+  success: number;
+  pending: number;
+  successRate: number;
+}
+
+export function useBreedingStats() {
+  return useQuery({
+    queryKey: ["breeding-records", "stats"],
+    queryFn: () => api.get<BreedingStats>("/breeding-records/stats"),
+  });
+}

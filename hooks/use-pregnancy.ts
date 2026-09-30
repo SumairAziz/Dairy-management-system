@@ -44,3 +44,21 @@ export function useDeletePregnancyRecord() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pregnancy-records"] }),
   });
 }
+
+export interface PregnancyStats {
+  total: number;
+  confirmed: number;
+  pendingConfirmation: number;
+  dueThisMonth: number;
+  overdue: number;
+  activePregnancies: number;
+  delivered: number;
+  failed: number;
+}
+
+export function usePregnancyStats() {
+  return useQuery({
+    queryKey: ["pregnancy-records", "stats"],
+    queryFn: () => api.get<PregnancyStats>("/pregnancy-records/stats"),
+  });
+}

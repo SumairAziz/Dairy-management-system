@@ -146,6 +146,7 @@ export async function getProductionSummary(animalId: number) {
   const activePregnancy = refreshed.pregnancy_records[0] ?? null;
   let daysUntilCalving: number | null = null;
   let dryOffDue = false;
+  let plannedDryOff: string | null = null;
 
   if (activePregnancy?.expected_delivery_date) {
     const edd = activePregnancy.expected_delivery_date;

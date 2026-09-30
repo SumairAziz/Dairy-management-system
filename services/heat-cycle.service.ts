@@ -124,3 +124,74 @@ export async function remove(id: number) {
   await findById(id); // ensure exists
   await prisma.heat_cycle_records.delete({ where: { heat_cycle_id: id } });
 }
+
+/**
+ * Aggregated heat cycle statistics for the dashboard section.
+ * Reuses the same computation as resolveStatusHeatCycleIds but returns
+ * counts instead of ID lists, so the frontend doesn't need to download
+ * all records + all pregnancies + all animals.
+ */
+export async function getStats() {
+  const [allRecords, activePregRecords, methodGroups] = await Promise.all([
+    prisma.heat_cycle_records.findMany({
+      select: { heat_cycle_id: true, animal_id: true, heat_start_date: true, heat_end_date: true },
+    }),
+    prisma.pregnancy_records.findMany({ select: { animal_id: true, status: true } }),
+    prisma.heat_cycle_records.groupBy({
+      by: ["detection_method"],
+      _count: true,
+    }),
+  ]);
+
+  const activePregs = new Set<number>();
+  for (const p of activePregRecords) {
+    if (isActivePregnancy(p)) activePregs.add(p.animal_id);
+  }
+
+  const minimalRecords: MinimalHeatCycleRecord[] = allRecords.map((r) => ({
+    animal_id: r.animal_id,
+    heat_start_date: r.heat_start_date ? r.heat_start_date.toISOString() : null,
+    heat_end_date: r.heat_end_date ? r.heat_end_date.toISOString() : null,
+  }));
+  const computation = computeCycleLengths(minimalRecords);
+
+  let inHeatCount = 0;
+  let expectedToday = 0;
+  let expectedThisWeek = 0;
+  let overdueCount = 0;
+
+  for (const [animalId, latest] of computation.latestByAnimal) {
+    if (activePregs.has(animalId)) continue;
+    if (!latest.heat_start_date) continue;
+
+    const minimal: MinimalHeatCycleRecord = {
+      animal_id: animalId,
+      heat_start_date: latest.heat_start_date,
+      heat_end_date: latest.heat_end_date ?? null,
+    };
+    const result = getHeatCycleStatus(minimal, computation, activePregs);
+
+    switch (result.status) {
+      case "In Heat":       inHeatCount++; break;
+      case "Due Today":     expectedToday++; expectedThisWeek++; break;
+      case "Upcoming":
+        if (result.daysUntil != null && result.daysUntil <= 7) expectedThisWeek++;
+        break;
+      case "Overdue":       overdueCount++; break;
+    }
+  }
+
+  const methodBreakdown = (
+    methodGroups as Array<{ detection_method: string | null; _count: number }>
+  )
+    .sort((a, b) => b._count - a._count)
+    .map((g) => ({ method: g.detection_method || "Unknown", count: g._count }));
+
+  return {
+    inHeatCount,
+    expectedToday,
+    expectedThisWeek,
+    overdueCount,
+    methodBreakdown,
+  };
+}

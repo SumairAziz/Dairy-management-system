@@ -269,7 +269,13 @@ export default function UnitsPage() {
     const list: Animal[] = detail?.animals ?? [];
     return list.filter((a) => {
       const q = filters.search.toLowerCase();
-      if (q && !JSON.stringify(a).toLowerCase().includes(q)) return false;
+      if (q) {
+        const matchesQuery =
+          a.tag_number?.toLowerCase().includes(q) ||
+          a.animal_name?.toLowerCase().includes(q) ||
+          a.breeds?.breed_name?.toLowerCase().includes(q);
+        if (!matchesQuery) return false;
+      }
       if (filters.health && latestHealth(a) !== filters.health) return false;
       if (filters.vaccination && vaccinationStatus(a) !== filters.vaccination)
         return false;

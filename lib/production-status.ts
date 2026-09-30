@@ -109,8 +109,7 @@ export function productionStatusWhere(
     case "never_lactated":
       return {
         gender: "F",
-        NOT: priorLactationWhere(),
-        NOT: { lactation_status: "DRY" },
+        NOT: [priorLactationWhere(), { lactation_status: "DRY" }],
         lifecycle_stage: { not: "Dry" },
       };
     case "not_applicable":

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import { AnimalCombobox } from "@/app/components/animal-combobox";
 import {
   Plus,
@@ -452,21 +454,24 @@ export default function MilkProductionPage() {
     <>
       <Navbar title="Milk Production" subtitle="Daily milk register — one row per animal per day" />
       <div className="p-6 space-y-6">
-        {/* Primary stats */}
-        <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
-          <StatCard label="Today Milk" value={statsLoading ? "…" : `${stats?.todayProduction ?? 0} L`} icon={<Droplets size={16} className="text-sky-400" />} iconBg="bg-sky-500/10" />
-          <StatCard label="Animals (today)" value={statsLoading ? "…" : String(stats?.animalsMilkedToday ?? 0)} icon={<Users size={16} className="text-emerald-400" />} iconBg="bg-emerald-500/10" />
-          <StatCard label="Avg Yield (today)" value={statsLoading ? "…" : `${stats?.avgYieldPerAnimal ?? 0} L`} icon={<TrendingUp size={16} className="text-violet-400" />} iconBg="bg-violet-500/10" />
-          <StatCard label="This Month Total" value={statsLoading ? "…" : `${stats?.monthlyProduction ?? 0} L`} icon={<CalendarDays size={16} className="text-amber-400" />} iconBg="bg-amber-500/10" />
-        </div>
+        {/* Primary & secondary stats */}
+        <CollapsibleDashboard storageKey="terradairy:dashboard:milk">
+          <div className="space-y-4">
+            <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
+              <StatCard label="Today Milk" value={statsLoading ? "…" : `${stats?.todayProduction ?? 0} L`} icon={<Droplets size={16} className="text-sky-400" />} iconBg="bg-sky-500/10" />
+              <StatCard label="Animals (today)" value={statsLoading ? "…" : String(stats?.animalsMilkedToday ?? 0)} icon={<Users size={16} className="text-emerald-400" />} iconBg="bg-emerald-500/10" />
+              <StatCard label="Avg Yield (today)" value={statsLoading ? "…" : `${stats?.avgYieldPerAnimal ?? 0} L`} icon={<TrendingUp size={16} className="text-violet-400" />} iconBg="bg-violet-500/10" />
+              <StatCard label="This Month Total" value={statsLoading ? "…" : `${stats?.monthlyProduction ?? 0} L`} icon={<CalendarDays size={16} className="text-amber-400" />} iconBg="bg-amber-500/10" />
+            </div>
 
-        {/* Secondary stats */}
-        <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
-          <StatCard label="Top Prod" value={stats?.topProducerLabel ?? "—"} icon={<Crown size={16} className="text-yellow-400" />} iconBg="bg-yellow-500/10" />
-          <StatCard label="Morning (today)" value={statsLoading ? "…" : `${stats?.sessions?.Morning ?? 0} L`} icon={<Sunrise size={16} className="text-amber-400" />} iconBg="bg-amber-500/10" />
-          <StatCard label="Afternoon (today)" value={statsLoading ? "…" : `${stats?.sessions?.Afternoon ?? 0} L`} icon={<Sun size={16} className="text-orange-400" />} iconBg="bg-orange-500/10" />
-          <StatCard label="Evening (today)" value={statsLoading ? "…" : `${stats?.sessions?.Evening ?? 0} L`} icon={<Moon size={16} className="text-indigo-400" />} iconBg="bg-indigo-500/10" />
-        </div>
+            <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
+              <StatCard label="Top Prod" value={stats?.topProducerLabel ?? "—"} icon={<Crown size={16} className="text-yellow-400" />} iconBg="bg-yellow-500/10" />
+              <StatCard label="Morning (today)" value={statsLoading ? "…" : `${stats?.sessions?.Morning ?? 0} L`} icon={<Sunrise size={16} className="text-amber-400" />} iconBg="bg-amber-500/10" />
+              <StatCard label="Afternoon (today)" value={statsLoading ? "…" : `${stats?.sessions?.Afternoon ?? 0} L`} icon={<Sun size={16} className="text-orange-400" />} iconBg="bg-orange-500/10" />
+              <StatCard label="Evening (today)" value={statsLoading ? "…" : `${stats?.sessions?.Evening ?? 0} L`} icon={<Moon size={16} className="text-indigo-400" />} iconBg="bg-indigo-500/10" />
+            </div>
+          </div>
+        </CollapsibleDashboard>
 
         <div className="space-y-4">
           {dryAnimals.length > 0 && (
@@ -648,29 +653,15 @@ export default function MilkProductionPage() {
                 )}
               </tbody>
             </table>
-            {total > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-white/5 text-xs text-slate-400">
-                <span>
-                  Page {page} of {totalPages} · {total} record{total !== 1 ? "s" : ""}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="p-1.5 rounded-md surface border hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="p-1.5 rounded-md surface border hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
+            <div className="p-4 border-t">
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                totalRecords={total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+              />
+            </div>
           </div>
         </div>
       </div>

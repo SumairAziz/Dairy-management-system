@@ -3,6 +3,8 @@ import { useMemo, useState, useEffect } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import {
   Plus,
   Filter,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   useBreedingRecords,
+  useBreedingStats,
   useCreateBreedingRecord,
   useUpdateBreedingRecord,
   useDeleteBreedingRecord,
@@ -116,9 +119,17 @@ export default function BreedingPage() {
   );
 
   const { data, isLoading } = useBreedingRecords(queryParams);
-  // Dashboard metrics reflect the whole dataset, not just the current
-  // filtered/paginated page.
-  const { data: allRecordsRes } = useBreedingRecords({ pageSize: "1000" });
+  // Dashboard metrics from a lightweight server-side aggregate endpoint
+  const { data: dashboardStatsData } = useBreedingStats();
+  const dashboardStats = dashboardStatsData ?? {
+    total: 0,
+    natural: 0,
+    ai: 0,
+    success: 0,
+    pending: 0,
+    failed: 0,
+    successRate: 0,
+  };
   const { data: femaleAnimals } = useAnimals({
     pageSize: "500",
     is_active: "true",
@@ -129,22 +140,6 @@ export default function BreedingPage() {
     is_active: "true",
     gender: "M",
   });
-
-  const dashboardStats = useMemo(() => {
-    const all = allRecordsRes?.data ?? [];
-    const total = all.length;
-    const natural = all.filter((r) => r.method === "Natural Mating").length;
-    const ai = all.filter((r) => r.method === "Artificial Insemination").length;
-    const success = all.filter((r) => r.result === "Success").length;
-    const failed = all.filter((r) => r.result === "Failed").length;
-    const pending = all.filter(
-      (r) => !r.result || r.result === "Pending",
-    ).length;
-    const resolved = success + failed;
-    const successRate =
-      resolved > 0 ? Math.round((success / resolved) * 100) : 0;
-    return { total, natural, ai, success, pending, successRate };
-  }, [allRecordsRes]);
 
   const createMutation = useCreateBreedingRecord();
   const updateMutation = useUpdateBreedingRecord();
@@ -293,61 +288,63 @@ export default function BreedingPage() {
       />
       <div className="p-6 space-y-4">
         {/* ── Compact metrics dashboard ──────────────────────────────── */}
-        <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y md:divide-y-0 divide-white/10">
-          <StatCard
-            label="Total Records"
-            value={dashboardStats.total}
-            icon={<ClipboardList size={16} className="text-sky-400" />}
-            iconBg="bg-sky-500/10"
-            href="/animals/breeding"
-            active={!filters.method && !filters.result}
-            tone="breeding"
-          />
-          <StatCard
-            label="Natural Matings"
-            value={dashboardStats.natural}
-            icon={<Heart size={16} className="text-rose-400" />}
-            iconBg="bg-rose-500/10"
-            href={buildFilterUrl("/animals/breeding", { method: "Natural Mating" })}
-            active={filters.method === "Natural Mating"}
-            tone="breeding"
-          />
-          <StatCard
-            label="AI Breedings"
-            value={dashboardStats.ai}
-            icon={<Syringe size={16} className="text-violet-400" />}
-            iconBg="bg-violet-500/10"
-            href={buildFilterUrl("/animals/breeding", { method: "Artificial Insemination" })}
-            active={filters.method === "Artificial Insemination"}
-            tone="breeding"
-          />
-          <StatCard
-            label="Successful"
-            value={dashboardStats.success}
-            icon={<CheckCircle2 size={16} className="text-emerald-400" />}
-            iconBg="bg-emerald-500/10"
-            href={buildFilterUrl("/animals/breeding", { result: "Success" })}
-            active={filters.result === "Success"}
-            tone="success"
-          />
-          <StatCard
-            label="Pending Results"
-            value={dashboardStats.pending}
-            icon={<Hourglass size={16} className="text-amber-400" />}
-            iconBg="bg-amber-500/10"
-            href={buildFilterUrl("/animals/breeding", { result: "Pending" })}
-            active={filters.result === "Pending"}
-            tone="warning"
-          />
-          <StatCard
-            label="Success Rate"
-            value={`${dashboardStats.successRate}%`}
-            icon={<Percent size={16} className="text-teal-400" />}
-            href={buildFilterUrl("/animals/breeding", { result: "Success" })}
-            iconBg="bg-teal-500/10"
-            tone="success"
-          />
-        </div>
+        <CollapsibleDashboard storageKey="terradairy:dashboard:breeding">
+          <div className="surface border rounded-2xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y md:divide-y-0 divide-white/10">
+            <StatCard
+              label="Total Records"
+              value={dashboardStats.total}
+              icon={<ClipboardList size={16} className="text-sky-400" />}
+              iconBg="bg-sky-500/10"
+              href="/animals/breeding"
+              active={!filters.method && !filters.result}
+              tone="breeding"
+            />
+            <StatCard
+              label="Natural Matings"
+              value={dashboardStats.natural}
+              icon={<Heart size={16} className="text-rose-400" />}
+              iconBg="bg-rose-500/10"
+              href={buildFilterUrl("/animals/breeding", { method: "Natural Mating" })}
+              active={filters.method === "Natural Mating"}
+              tone="breeding"
+            />
+            <StatCard
+              label="AI Breedings"
+              value={dashboardStats.ai}
+              icon={<Syringe size={16} className="text-violet-400" />}
+              iconBg="bg-violet-500/10"
+              href={buildFilterUrl("/animals/breeding", { method: "Artificial Insemination" })}
+              active={filters.method === "Artificial Insemination"}
+              tone="breeding"
+            />
+            <StatCard
+              label="Successful"
+              value={dashboardStats.success}
+              icon={<CheckCircle2 size={16} className="text-emerald-400" />}
+              iconBg="bg-emerald-500/10"
+              href={buildFilterUrl("/animals/breeding", { result: "Success" })}
+              active={filters.result === "Success"}
+              tone="success"
+            />
+            <StatCard
+              label="Pending Results"
+              value={dashboardStats.pending}
+              icon={<Hourglass size={16} className="text-amber-400" />}
+              iconBg="bg-amber-500/10"
+              href={buildFilterUrl("/animals/breeding", { result: "Pending" })}
+              active={filters.result === "Pending"}
+              tone="warning"
+            />
+            <StatCard
+              label="Success Rate"
+              value={`${dashboardStats.successRate}%`}
+              icon={<Percent size={16} className="text-teal-400" />}
+              href={buildFilterUrl("/animals/breeding", { result: "Success" })}
+              iconBg="bg-teal-500/10"
+              tone="success"
+            />
+          </div>
+        </CollapsibleDashboard>
 
         <div className="flex justify-between items-center gap-3 flex-wrap">
           <div className="flex gap-2">
@@ -502,27 +499,13 @@ export default function BreedingPage() {
           </table>
         </div>
 
-        <div className="flex justify-between items-center text-sm">
-          <span className="muted">
-            Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          totalRecords={data?.total}
+          pageSize={data?.pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

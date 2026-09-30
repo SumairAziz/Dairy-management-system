@@ -55,3 +55,18 @@ export function useDeleteHeatCycle() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["heat-cycles"] }),
   });
 }
+
+export interface HeatCycleStats {
+  inHeatCount: number;
+  expectedToday: number;
+  expectedThisWeek: number;
+  overdueCount: number;
+  methodBreakdown: Array<{ method: string; count: number }>;
+}
+
+export function useHeatCycleStats() {
+  return useQuery({
+    queryKey: ["heat-cycles", "stats"],
+    queryFn: () => api.get<HeatCycleStats>("/heat-cycles/stats"),
+  });
+}

@@ -14,6 +14,7 @@ import {
   isDeliveredPregnancy,
   isFailedPregnancy,
   buildPregnancyStatusWhere,
+  TERMINAL_PREGNANCY_STATUSES,
   type PregnancyStatusKey,
 } from "@/lib/pregnancy-status";
 
@@ -210,4 +211,63 @@ export async function remove(id: number) {
   }
 
   await prisma.pregnancy_records.delete({ where: { pregnancy_id: id } });
+}
+
+/**
+ * Aggregated pregnancy statistics for the dashboard section.
+ * Uses SQL counts so the frontend doesn't need to fetch all records.
+ */
+export async function getStats() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const [
+    total,
+    confirmed,
+    pendingConfirmation,
+    dueThisMonth,
+    overdue,
+    activePregnancies,
+    delivered,
+    failed,
+  ] = await Promise.all([
+    prisma.pregnancy_records.count(),
+    prisma.pregnancy_records.count({ where: { status: "Confirmed" } }),
+    prisma.pregnancy_records.count({
+      where: { status: { notIn: ["Confirmed", "Delivered", "Failed"] } },
+    }),
+    prisma.pregnancy_records.count({
+      where: {
+        expected_delivery_date: { gte: monthStart, lte: monthEnd },
+        status: { notIn: [...TERMINAL_PREGNANCY_STATUSES] },
+        actual_delivery_date: null,
+      },
+    }),
+    // Overdue: expected delivery is past, not yet delivered/failed
+    prisma.pregnancy_records.count({
+      where: {
+        expected_delivery_date: { lt: now },
+        actual_delivery_date: null,
+        status: { notIn: [...TERMINAL_PREGNANCY_STATUSES] },
+      },
+    }),
+    // Active (non-terminal) pregnancies
+    prisma.pregnancy_records.count({
+      where: { status: { notIn: ["Delivered", "Failed"] } },
+    }),
+    prisma.pregnancy_records.count({ where: { status: "Delivered" } }),
+    prisma.pregnancy_records.count({ where: { status: "Failed" } }),
+  ]);
+
+  return {
+    total,
+    confirmed,
+    pendingConfirmation,
+    dueThisMonth,
+    overdue,
+    activePregnancies,
+    delivered,
+    failed,
+  };
 }

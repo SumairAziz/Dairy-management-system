@@ -28,6 +28,7 @@ import {
   ensureLotsForItem,
   getLotsByItemId,
   getPrimaryLotSummary,
+  getPrimaryLotSummaries,
 } from "@/lib/inventory-lots";
 import { matchesExpiryDaysFilter } from "@/lib/inventory-status";
 import type {
@@ -84,17 +85,16 @@ function buildBaseWhere(
 }
 
 async function enrichWithLots(items: EnrichedInventoryItem[]) {
-  const enriched = await Promise.all(
-    items.map(async (item) => {
-      const primaryLot = await getPrimaryLotSummary(item.item_id);
-      return {
-        ...item,
-        batch: primaryLot?.lot_number ?? null,
-        primary_lot: primaryLot,
-      };
-    }),
-  );
-  return enriched;
+  const itemIds = items.map((i) => i.item_id);
+  const lotMap = await getPrimaryLotSummaries(itemIds);
+  return items.map((item) => {
+    const primaryLot = lotMap.get(item.item_id) ?? null;
+    return {
+      ...item,
+      batch: primaryLot?.lot_number ?? null,
+      primary_lot: primaryLot,
+    };
+  });
 }
 
 /** Shared source of truth for active inventory rows with status fields. */
@@ -559,30 +559,17 @@ export async function getInventoryCostThisMonth(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  const rows = await prisma.inventory_transactions.findMany({
-    where: {
-      transaction_type: MOVEMENT_STOCK_IN,
-      transaction_date: { gte: start, lte: end },
-    },
-    include: {
-      inventory_lots: { select: { unit_cost: true } },
-      inventory_items: { select: { unit_cost: true } },
-    },
-  });
+  const res = await prisma.$queryRaw<Array<{ total: number | null }>>`
+    SELECT SUM(t.quantity * COALESCE(l.unit_cost, i.unit_cost, 0))::float AS total
+    FROM inventory_transactions t
+    LEFT JOIN inventory_lots l ON l.lot_id = t.lot_id
+    LEFT JOIN inventory_items i ON i.item_id = t.item_id
+    WHERE t.transaction_type = ${MOVEMENT_STOCK_IN}
+      AND t.transaction_date >= ${start}
+      AND t.transaction_date <= ${end}
+  `;
 
-  let total = 0;
-  for (const row of rows) {
-    const qty = Number(row.quantity);
-    const cost =
-      row.inventory_lots?.unit_cost != null
-        ? Number(row.inventory_lots.unit_cost)
-        : row.inventory_items.unit_cost != null
-          ? Number(row.inventory_items.unit_cost)
-          : 0;
-    total += qty * cost;
-  }
-
-  return Number(total.toFixed(2));
+  return Number((res[0]?.total ?? 0).toFixed(2));
 }
 
 export async function getConsumptionAnalytics(days = 30) {

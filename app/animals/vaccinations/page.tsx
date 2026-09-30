@@ -6,8 +6,6 @@ import {
   Plus,
   Search,
   X,
-  ChevronLeft,
-  ChevronRight,
   Syringe,
   AlertTriangle,
   CalendarCheck,
@@ -22,6 +20,8 @@ import {
 import { Navbar } from "@/app/components/navbar";
 import { routes } from "@/lib/routes";
 import { Modal, Field, inputCls } from "@/app/components/modal";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import { useVaccinations, useCreateVaccination, useAnimals, useUrlFilters, useVaccinationStats } from "@/hooks";
 import type { Animal } from "@/types";
 import {
@@ -334,96 +334,98 @@ export default function VaccinationsPage() {
       <Navbar title="Vaccinations" subtitle="Vaccination record management" />
       <div className="p-6 space-y-4">
         {/* ── Compact dashboard ─────────────────────────────────── */}
-        <div className="surface border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="font-semibold text-sm">Vaccination Overview</h3>
-            <span className="text-[11px] muted">
-              {partialData
-                ? `Showing first ${allRecords.length} of ${totalRecordsInDb} records`
-                : `Based on ${allRecords.length} records · ${today}`}
-            </span>
-          </div>
+        <CollapsibleDashboard storageKey="terradairy:dashboard:vaccinations">
+          <div className="surface border rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="font-semibold text-sm">Vaccination Overview</h3>
+              <span className="text-[11px] muted">
+                {partialData
+                  ? `Showing first ${allRecords.length} of ${totalRecordsInDb} records`
+                  : `Based on ${allRecords.length} records · ${today}`}
+              </span>
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
-            <StatTile
-              icon={Users}
-              label="Total Animals"
-              value={animalStats.total}
-              tone="bg-slate-500/15 text-slate-500 dark:text-slate-300"
-            />
-            <StatTile
-              icon={Syringe}
-              label="Vaccinated"
-              value={animalStats.vaccinated}
-              tone="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-            />
-            <StatTile
-              icon={ShieldOff}
-              label="Non-Vaccinated"
-              value={animalStats.nonVaccinated}
-              tone="bg-slate-500/15 text-slate-500 dark:text-slate-400"
-            />
-            <StatTile
-              icon={AlertTriangle}
-              label="Overdue"
-              value={counts.overdue}
-              tone="bg-rose-500/15 text-rose-500 dark:text-rose-400"
-              onClick={() => setFilters({ ...filters, status: "overdue" })}
-              active={activeFilter === "overdue"}
-            />
-            <StatTile
-              icon={CalendarCheck}
-              label="Due Today"
-              value={counts.due_today}
-              tone="bg-amber-500/15 text-amber-600 dark:text-amber-400"
-              onClick={() => setFilters({ ...filters, status: "due_today" })}
-              active={activeFilter === "due_today"}
-            />
-            <StatTile
-              icon={CalendarClock}
-              label="Due in 7 Days"
-              value={counts.due_soon}
-              tone="bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"
-              onClick={() => setFilters({ ...filters, status: "due_soon" })}
-              active={activeFilter === "due_soon"}
-            />
-            <StatTile
-              icon={CalendarDays}
-              label="Upcoming"
-              value={counts.upcoming}
-              tone="bg-sky-500/15 text-sky-600 dark:text-sky-400"
-              onClick={() => setFilters({ ...filters, status: "upcoming" })}
-              active={activeFilter === "upcoming"}
-            />
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+              <StatTile
+                icon={Users}
+                label="Total Animals"
+                value={animalStats.total}
+                tone="bg-slate-500/15 text-slate-500 dark:text-slate-300"
+              />
+              <StatTile
+                icon={Syringe}
+                label="Vaccinated"
+                value={animalStats.vaccinated}
+                tone="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              />
+              <StatTile
+                icon={ShieldOff}
+                label="Non-Vaccinated"
+                value={animalStats.nonVaccinated}
+                tone="bg-slate-500/15 text-slate-500 dark:text-slate-400"
+              />
+              <StatTile
+                icon={AlertTriangle}
+                label="Overdue"
+                value={counts.overdue}
+                tone="bg-rose-500/15 text-rose-500 dark:text-rose-400"
+                onClick={() => setFilters({ ...filters, status: "overdue" })}
+                active={activeFilter === "overdue"}
+              />
+              <StatTile
+                icon={CalendarCheck}
+                label="Due Today"
+                value={counts.due_today}
+                tone="bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                onClick={() => setFilters({ ...filters, status: "due_today" })}
+                active={activeFilter === "due_today"}
+              />
+              <StatTile
+                icon={CalendarClock}
+                label="Due in 7 Days"
+                value={counts.due_soon}
+                tone="bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"
+                onClick={() => setFilters({ ...filters, status: "due_soon" })}
+                active={activeFilter === "due_soon"}
+              />
+              <StatTile
+                icon={CalendarDays}
+                label="Upcoming"
+                value={counts.upcoming}
+                tone="bg-sky-500/15 text-sky-600 dark:text-sky-400"
+                onClick={() => setFilters({ ...filters, status: "upcoming" })}
+                active={activeFilter === "upcoming"}
+              />
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <StatTile
-              icon={CheckCircle2}
-              label="Completed"
-              value={counts.completed}
-              tone="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-              onClick={() => setFilters({ ...filters, status: "completed" })}
-              active={activeFilter === "completed"}
-            />
-            <StatTile
-              icon={Syringe}
-              label="All Records"
-              value={counts.all}
-              tone="bg-brand-500/15 text-brand-600 dark:text-brand-400"
-              onClick={() => setFilters({ status: "all" })}
-              active={activeFilter === "all"}
-            />
-            <StatTile
-              icon={Zap}
-              label="Auto Generated"
-              value={counts.auto_generated}
-              tone="bg-purple-500/15 text-purple-600 dark:text-purple-400"
-              onClick={() => setFilters({ ...filters, status: "auto_generated" })}
-              active={activeFilter === "auto_generated"}
-            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <StatTile
+                icon={CheckCircle2}
+                label="Completed"
+                value={counts.completed}
+                tone="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                onClick={() => setFilters({ ...filters, status: "completed" })}
+                active={activeFilter === "completed"}
+              />
+              <StatTile
+                icon={Syringe}
+                label="All Records"
+                value={counts.all}
+                tone="bg-brand-500/15 text-brand-600 dark:text-brand-400"
+                onClick={() => setFilters({ status: "all" })}
+                active={activeFilter === "all"}
+              />
+              <StatTile
+                icon={Zap}
+                label="Auto Generated"
+                value={counts.auto_generated}
+                tone="bg-purple-500/15 text-purple-600 dark:text-purple-400"
+                onClick={() => setFilters({ ...filters, status: "auto_generated" })}
+                active={activeFilter === "auto_generated"}
+              />
+            </div>
           </div>
-        </div>
+        </CollapsibleDashboard>
 
         {/* ── Search + add ──────────────────────────────────────── */}
         <div className="flex justify-between items-center gap-3 flex-wrap">
@@ -637,43 +639,13 @@ export default function VaccinationsPage() {
         </div>
 
         {/* ── Pagination ────────────────────────────────────────── */}
-        <div className="flex justify-between items-center text-sm">
-          <div className="flex items-center gap-3">
-            <span className="muted">
-              Page {currentPage} of {totalPages} · {vaccData?.total ?? sorted.length} records
-            </span>
-            <label className="flex items-center gap-2 muted">
-              Rows per page
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="surface border rounded px-2 py-1 text-sm"
-              >
-                {PAGE_SIZE_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          page={currentPage}
+          totalPages={totalPages}
+          totalRecords={vaccData?.total ?? sorted.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* ── Create modal ─────────────────────────────────────────── */}

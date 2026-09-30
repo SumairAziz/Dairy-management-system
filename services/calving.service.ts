@@ -160,3 +160,42 @@ export async function remove(id: number) {
   await findById(id);
   await prisma.calving_records.delete({ where: { calving_id: id } });
 }
+
+/**
+ * Aggregated calving statistics for the dashboard section.
+ * Uses SQL so the frontend doesn't need to fetch all records.
+ */
+export async function getStats() {
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  const [total, byOutcome, byGender, thisMonth] = await Promise.all([
+    prisma.calving_records.count(),
+    prisma.calving_records.groupBy({
+      by: ["outcome"],
+      _count: true,
+    }),
+    prisma.calving_records.groupBy({
+      by: ["calf_gender"],
+      _count: true,
+    }),
+    prisma.calving_records.count({
+      where: { calving_date: { gte: monthStart } },
+    }),
+  ]);
+
+  let liveBirths = 0;
+  let twins = 0;
+  for (const g of byOutcome) {
+    if (g.outcome === "Live Birth") liveBirths = g._count;
+    else if (g.outcome === "Twins") twins = g._count;
+  }
+
+  let heifers = 0;
+  let bulls = 0;
+  for (const g of byGender) {
+    if (g.calf_gender === "F") heifers = g._count;
+    else if (g.calf_gender === "M") bulls = g._count;
+  }
+
+  return { total, liveBirths, twins, thisMonth, heifers, bulls };
+}

@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/app/context/theme-context";
+import { DashboardVisibilityProvider } from "@/app/context/dashboard-context";
 import { QueryProvider } from "@/lib/query-provider";
 import { AuthProvider } from "@/lib/auth-provider";
 import { ExportToastProvider } from "@/components/export/ExportToastProvider";
@@ -32,10 +33,12 @@ export default function RootLayout({
           <AuthProvider>
             <ExportToastProvider>
               <ThemeProvider>
-              <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="flex-1 min-w-0">{children}</main>
-              </div>
+                <DashboardVisibilityProvider>
+                  <div className="flex min-h-screen">
+                    <Sidebar />
+                    <main className="flex-1 min-w-0">{children}</main>
+                  </div>
+                </DashboardVisibilityProvider>
               </ThemeProvider>
             </ExportToastProvider>
           </AuthProvider>

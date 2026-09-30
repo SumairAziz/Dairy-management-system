@@ -4,11 +4,10 @@ import {
   TERMINAL_PREGNANCY_STATUSES,
   getPregnantAnimalsFilter,
 } from "@/lib/pregnancy-status";
-import { getAnimalVaccinationStatus } from "@/lib/vaccination-status";
+import { buildVaccinationStatusWhere } from "@/lib/vaccination-status";
 import {
-  stageBucket,
-  isBreedingEligible,
   HEALTH_ISSUE_STATUSES,
+  MATURE_AGE_MONTHS,
   type StageBucket,
 } from "@/lib/animal-rules";
 import { countByProductionStatus } from "@/services/lactation.service";
@@ -16,92 +15,91 @@ import { countByProductionStatus } from "@/services/lactation.service";
 const STAGE_ORDER: StageBucket[] = ["Calves", "Heifers", "Adults", "Seniors"];
 const TOP_BREEDS_LIMIT = 6;
 
+/** Map lifecycle_stage values to their display bucket. Matches lib/animal-rules.ts STAGE_BUCKET_MAP. */
+const STAGE_BUCKET_SQL = `
+  CASE lifecycle_stage
+    WHEN 'Calf'           THEN 'Calves'
+    WHEN 'Heifer'         THEN 'Heifers'
+    WHEN 'Pregnant Heifer' THEN 'Heifers'
+    WHEN 'Lactating'      THEN 'Adults'
+    WHEN 'Dry'            THEN 'Adults'
+    WHEN 'Bull'           THEN 'Adults'
+    WHEN 'Breeding Bull'  THEN 'Adults'
+    WHEN 'Retired'        THEN 'Seniors'
+    ELSE NULL
+  END
+`;
+
 /**
- * Aggregate herd overview for the Animals page dashboard section. Mirrors
- * dashboard.service.ts's predicates (ACTIVE_PREGNANCY_STATUSES, open-heat-cycle
- * check, health status list) so the numbers stay consistent with the main
- * dashboard rather than reinventing the same rules differently.
+ * Aggregate herd overview for the Animals page dashboard section.
+ *
+ * All counts and distributions are computed via SQL aggregation —
+ * no full-table fetch into JS memory.
  */
 export async function getAnimalStats() {
-  const animals = await prisma.animals.findMany({
-    select: {
-      animal_id: true,
-      gender: true,
-      is_active: true,
-      date_of_birth: true,
-      lifecycle_stage: true,
-      pregnancy_status: true,
-      lactation_status: true,
-      breeds: { select: { breed_id: true, breed_name: true } },
-      farms: { select: { farm_id: true, farm_name: true } },
-    },
-  });
-
-  const total = animals.length;
-  const female = animals.filter((a) => a.gender === "F").length;
-  const male = animals.filter((a) => a.gender === "M").length;
-
-  const activeAnimals = animals.filter((a) => a.is_active);
-  const activeCount = activeAnimals.length;
-  const inactiveCount = total - activeCount;
-
-  const productionCounts = await countByProductionStatus();
-  const lactatingCount = productionCounts.lactating;
-  const dryCount = productionCounts.dry;
-  const neverLactatedCount = productionCounts.never_lactated;
-  const lactatingPct = total > 0 ? (lactatingCount / total) * 100 : 0;
-
-  const calfAnimals = animals.filter((a) => a.lifecycle_stage === "Calf");
-  const calvesMale = calfAnimals.filter((a) => a.gender === "M").length;
-  const calvesFemale = calfAnimals.filter((a) => a.gender === "F").length;
-
-  const breedingEligibleCount = animals.filter((a) => isBreedingEligible(a)).length;
-
-  // Stage distribution — active herd only, matching how the main dashboard's
-  // lifecycleDist is scoped (is_active: true).
-  const stageCounts: Record<StageBucket, number> = { Calves: 0, Heifers: 0, Adults: 0, Seniors: 0 };
-  for (const a of activeAnimals) {
-    const bucket = stageBucket(a.lifecycle_stage);
-    if (bucket) stageCounts[bucket] += 1;
-  }
-  const stageDistribution = STAGE_ORDER.map((label) => ({ label, value: stageCounts[label] }));
-
-  // Breed distribution — top N breeds by count, remainder grouped as "Other".
-  // Keyed by breed_id (not name) so the chart can carry a real drill-down id;
-  // "Unknown"/"Other" buckets have no id and stay non-clickable.
-  const breedCounts = new Map<string, { id: number | null; label: string; value: number }>();
-  for (const a of activeAnimals) {
-    const id = a.breeds?.breed_id ?? null;
-    const key = id !== null ? String(id) : "unknown";
-    const label = a.breeds?.breed_name ?? "Unknown";
-    const existing = breedCounts.get(key);
-    if (existing) existing.value += 1;
-    else breedCounts.set(key, { id, label, value: 1 });
-  }
-  const sortedBreeds = [...breedCounts.values()].sort((a, b) => b.value - a.value);
-  const topBreeds = sortedBreeds.slice(0, TOP_BREEDS_LIMIT);
-  const otherBreedsTotal = sortedBreeds.slice(TOP_BREEDS_LIMIT).reduce((s, b) => s + b.value, 0);
-  const breedDistribution =
-    otherBreedsTotal > 0
-      ? [...topBreeds, { id: null, label: "Other", value: otherBreedsTotal }]
-      : topBreeds;
-
-  // Farm distribution — keyed by farm_id for the same reason.
-  const farmCounts = new Map<string, { id: number | null; label: string; value: number }>();
-  for (const a of activeAnimals) {
-    const id = a.farms?.farm_id ?? null;
-    const key = id !== null ? String(id) : "unknown";
-    const label = a.farms?.farm_name ?? "Unknown";
-    const existing = farmCounts.get(key);
-    if (existing) existing.value += 1;
-    else farmCounts.set(key, { id, label, value: 1 });
-  }
-  const farmDistribution = [...farmCounts.values()].sort((a, b) => b.value - a.value);
-
   const now = new Date();
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const [pregnantCount, dueWithin30Days, inHeatCount, healthIssueAnimals, vaccinationRecords] = await Promise.all([
+  // Breeding eligibility cutoff: females born at least MATURE_AGE_MONTHS ago
+  const breedingCutoff = new Date();
+  breedingCutoff.setMonth(breedingCutoff.getMonth() - MATURE_AGE_MONTHS);
+
+  const [
+    // 1. Basic counts — all via SQL COUNT
+    totalCount,
+    femaleCount,
+    maleCount,
+    activeCount,
+
+    // 2. Calves breakdown
+    calvesCount,
+    calvesMale,
+    calvesFemale,
+
+    // 3. Production counts (already SQL-based via countByProductionStatus)
+    productionCounts,
+
+    // 4. Pregnant + due within 30 days (already SQL-based)
+    pregnantCount,
+    dueWithin30Days,
+
+    // 5. In heat (already SQL-based)
+    inHeatCount,
+
+    // 6. Breeding eligible — SQL count matching isBreedingEligible() logic
+    breedingEligibleCount,
+
+    // 7. Health issues — SQL count of distinct animals
+    healthIssueCount,
+
+    // 8. Vaccination due — SQL counts using same WHERE as vaccination page
+    vaccOverdueAnimals,
+    vaccDueSoonAnimals,
+
+    // 9. Stage distribution — SQL GROUP BY
+    stageDist,
+
+    // 10. Breed distribution — SQL GROUP BY with JOIN
+    breedDist,
+
+    // 11. Farm distribution — SQL GROUP BY with JOIN
+    farmDist,
+  ] = await Promise.all([
+    // 1. Basic counts
+    prisma.animals.count(),
+    prisma.animals.count({ where: { gender: "F" } }),
+    prisma.animals.count({ where: { gender: "M" } }),
+    prisma.animals.count({ where: { is_active: true } }),
+
+    // 2. Calves
+    prisma.animals.count({ where: { lifecycle_stage: "Calf" } }),
+    prisma.animals.count({ where: { lifecycle_stage: "Calf", gender: "M" } }),
+    prisma.animals.count({ where: { lifecycle_stage: "Calf", gender: "F" } }),
+
+    // 3. Production status counts
+    countByProductionStatus(),
+
+    // 4. Pregnancy counts
     prisma.animals.count({ where: getPregnantAnimalsFilter() }),
     prisma.pregnancy_records.count({
       where: {
@@ -109,49 +107,134 @@ export async function getAnimalStats() {
         status: { notIn: [...TERMINAL_PREGNANCY_STATUSES] },
       },
     }),
-    prisma.heat_cycle_records.count({ where: { heat_end_date: null, heat_start_date: { not: null } } }),
+
+    // 5. In heat count
+    prisma.heat_cycle_records.count({
+      where: { heat_end_date: null, heat_start_date: { not: null } },
+    }),
+
+    // 6. Breeding eligible: active females, old enough, not pregnant, correct stage
+    prisma.animals.count({
+      where: {
+        gender: "F",
+        is_active: true,
+        date_of_birth: { lte: breedingCutoff },
+        pregnancy_status: { not: "PREGNANT" },
+        lifecycle_stage: { notIn: ["Dry", "Retired", "Sold", "Deceased", "Calf"] },
+      },
+    }),
+
+    // 7. Health issues: distinct animals with active health incidents
     prisma.health_incidents.findMany({
       where: { status: { in: HEALTH_ISSUE_STATUSES } },
       distinct: ["animal_id"],
       select: { animal_id: true },
     }),
+
+    // 8. Vaccination due: distinct animals with overdue or due-soon records
     prisma.vaccination_records.findMany({
-      select: { animal_id: true, next_due_date: true, vaccination_date: true },
+      where: buildVaccinationStatusWhere("overdue"),
+      distinct: ["animal_id"],
+      select: { animal_id: true },
     }),
+    prisma.vaccination_records.findMany({
+      where: {
+        OR: [
+          buildVaccinationStatusWhere("due_today") as Record<string, unknown>,
+          buildVaccinationStatusWhere("due_soon") as Record<string, unknown>,
+        ],
+      },
+      distinct: ["animal_id"],
+      select: { animal_id: true },
+    }),
+
+    // 9. Stage distribution (active herd only)
+    prisma.$queryRawUnsafe<Array<{ bucket: string; value: number }>>(`
+      SELECT ${STAGE_BUCKET_SQL} AS bucket, COUNT(*)::int AS value
+      FROM animals
+      WHERE is_active = TRUE AND ${STAGE_BUCKET_SQL} IS NOT NULL
+      GROUP BY bucket
+      ORDER BY bucket
+    `),
+
+    // 10. Breed distribution (active herd only, top N + Other)
+    prisma.$queryRaw<Array<{ id: number | null; label: string; value: number }>>`
+      SELECT b.breed_id AS id, b.breed_name AS label, COUNT(a.animal_id)::int AS value
+      FROM animals a
+      LEFT JOIN breeds b ON b.breed_id = a.breed_id
+      WHERE a.is_active = TRUE
+      GROUP BY b.breed_id, b.breed_name
+      ORDER BY value DESC
+    `,
+
+    // 11. Farm distribution (active herd only)
+    prisma.$queryRaw<Array<{ id: number | null; label: string; value: number }>>`
+      SELECT f.farm_id AS id, f.farm_name AS label, COUNT(a.animal_id)::int AS value
+      FROM animals a
+      LEFT JOIN farms f ON f.farm_id = a.farm_id
+      WHERE a.is_active = TRUE
+      GROUP BY f.farm_id, f.farm_name
+      ORDER BY value DESC
+    `,
   ]);
 
-  // Vaccination-due = distinct animals whose latest record is overdue or due
-  // soon, using the exact same classification the Vaccinations page uses.
-  const byAnimal = new Map<number, Array<{ next_due_date: string | null; vaccination_date: string | null }>>();
-  for (const r of vaccinationRecords) {
-    if (!r.animal_id) continue;
-    const list = byAnimal.get(r.animal_id) ?? [];
-    list.push({
-      next_due_date: r.next_due_date ? r.next_due_date.toISOString() : null,
-      vaccination_date: r.vaccination_date ? r.vaccination_date.toISOString() : null,
-    });
-    byAnimal.set(r.animal_id, list);
+  const inactiveCount = totalCount - activeCount;
+  const lactatingCount = productionCounts.lactating;
+  const dryCount = productionCounts.dry;
+  const neverLactatedCount = productionCounts.never_lactated;
+  const lactatingPct = totalCount > 0 ? (lactatingCount / totalCount) * 100 : 0;
+
+  // Merge overdue + due_soon animal ID sets for distinct count
+  const vaccDueAnimalIds = new Set<number>();
+  for (const r of vaccOverdueAnimals) { if (r.animal_id) vaccDueAnimalIds.add(r.animal_id); }
+  for (const r of vaccDueSoonAnimals) { if (r.animal_id) vaccDueAnimalIds.add(r.animal_id); }
+
+  // Stage distribution: map raw results to ordered array
+  const stageMap = new Map<string, number>();
+  for (const row of stageDist) {
+    if (row.bucket) stageMap.set(row.bucket, row.value);
   }
-  let vaccinationDueCount = 0;
-  for (const records of byAnimal.values()) {
-    const status = getAnimalVaccinationStatus(records);
-    if (status === "overdue" || status === "due_for_vaccination") vaccinationDueCount++;
-  }
+  const stageDistribution = STAGE_ORDER.map((label) => ({
+    label,
+    value: stageMap.get(label) ?? 0,
+  }));
+
+  // Breed distribution: top N + Other bucket
+  const rawBreeds = breedDist.map((r) => ({
+    id: r.id ?? null,
+    label: r.label ?? "Unknown",
+    value: r.value,
+  }));
+  const topBreeds = rawBreeds.slice(0, TOP_BREEDS_LIMIT);
+  const otherBreedsTotal = rawBreeds
+    .slice(TOP_BREEDS_LIMIT)
+    .reduce((s, b) => s + b.value, 0);
+  const breedDistribution =
+    otherBreedsTotal > 0
+      ? [...topBreeds, { id: null, label: "Other", value: otherBreedsTotal }]
+      : topBreeds;
+
+  // Farm distribution
+  const farmDistribution = farmDist.map((r) => ({
+    id: r.id ?? null,
+    label: r.label ?? "Unknown",
+    value: r.value,
+  }));
 
   return serialize({
-    total: { count: total, female, male },
+    total: { count: totalCount, female: femaleCount, male: maleCount },
     active: { count: activeCount, inactiveCount },
     lactating: { count: lactatingCount, percentOfHerd: Number(lactatingPct.toFixed(1)) },
     pregnant: { count: pregnantCount, dueWithin30Days },
     inHeat: { count: inHeatCount },
-    calves: { count: calfAnimals.length, male: calvesMale, female: calvesFemale },
+    calves: { count: calvesCount, male: calvesMale, female: calvesFemale },
     stageDistribution,
     breedDistribution,
     farmDistribution,
-    vaccinationDue: { count: vaccinationDueCount },
+    vaccinationDue: { count: vaccDueAnimalIds.size },
     breedingEligible: { count: breedingEligibleCount },
     dry: { count: dryCount },
     neverLactated: { count: neverLactatedCount },
-    healthIssues: { count: healthIssueAnimals.length },
+    healthIssues: { count: healthIssueCount.length },
   });
 }

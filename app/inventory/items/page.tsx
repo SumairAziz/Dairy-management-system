@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
-import { Plus, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { PaginationControls } from "@/app/components/pagination";
+import { Plus, Filter } from "lucide-react";
 import {
   useInventory,
   useInventoryMeta,
@@ -245,31 +246,13 @@ export default function InventoryItemsPage() {
           onDelete={setDeleteId}
         />
 
-        <div className="flex justify-between items-center text-sm">
-          <span className="muted">
-            Showing {data?.data.length ? (page - 1) * pageSize + 1 : 0}–
-            {Math.min(page * pageSize, data?.total ?? 0)} of {data?.total ?? 0}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="p-2 rounded-lg border surface disabled:opacity-40"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span>
-              Page {page} / {totalPages}
-            </span>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="p-2 rounded-lg border surface disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          totalRecords={data?.total ?? 0}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

@@ -2,7 +2,9 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, Field, inputCls } from "@/app/components/modal";
-import { Plus, Filter, ChevronLeft, ChevronRight, Baby } from "lucide-react";
+import { Plus, Filter, Baby } from "lucide-react";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import Link from "next/link";
 import {
   useAnimals,
@@ -247,7 +249,9 @@ export default function AnimalsPage() {
     <>
       <Navbar title="Animals" subtitle={`${data?.total ?? 0} records`} />
       <div className="p-6 space-y-4">
-        <AnimalsDashboard filters={filters} onQuickFilter={applyQuickFilter} />
+        <CollapsibleDashboard storageKey="terradairy:dashboard:animals" title="Herd Overview">
+          <AnimalsDashboard filters={filters} onQuickFilter={applyQuickFilter} />
+        </CollapsibleDashboard>
 
         <div className="flex justify-between items-center gap-3 flex-wrap">
           <div className="flex gap-2">
@@ -534,44 +538,30 @@ export default function AnimalsPage() {
           </table>
         </div>
 
-        <div className="flex justify-between items-center text-sm">
-          <div className="flex items-center gap-3">
-            <span className="muted">
-              Page {page} of {totalPages}
-            </span>
-            <label className="flex items-center gap-2 muted">
-              Rows per page
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="surface border rounded px-2 py-1 text-sm"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-2 rounded surface border disabled:opacity-40"
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <label className="flex items-center gap-2 muted text-xs">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="surface border rounded px-2 py-1 text-xs"
             >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalRecords={data?.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         </div>
       </div>
 

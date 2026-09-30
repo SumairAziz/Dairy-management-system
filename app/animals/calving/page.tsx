@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import {
   Star,
   Trash2,
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   useCalvingRecords,
+  useCalvingStats,
   useCreateCalving,
   useUpdateCalving,
   useDeleteCalving,
@@ -75,7 +78,11 @@ export default function CalvingPage() {
   const [deleteTarget, setDeleteTarget] = useState<CalvingRecord | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
 
-  const { data: calvingRes, isLoading } = useCalvingRecords({ pageSize: "100" });
+  const { data: calvingRes, isLoading } = useCalvingRecords({
+    page: String(page),
+    pageSize: String(PAGE_SIZE),
+  });
+  const { data: statsData } = useCalvingStats();
   const { data: animalsRes } = useAnimals({ pageSize: "500", gender: "F" });
   const { data: pregnancyRes } = usePregnancyRecords({ pageSize: "500" });
 
@@ -83,25 +90,23 @@ export default function CalvingPage() {
   const updateMutation = useUpdateCalving();
   const deleteMutation = useDeleteCalving();
 
-  const records: CalvingRecord[] = calvingRes?.data ?? [];
+  const paged: CalvingRecord[] = calvingRes?.data ?? [];
   const femaleAnimals = animalsRes?.data ?? [];
   const pregnancies = pregnancyRes?.data ?? [];
 
   // Stats
   const stats = useMemo(() => {
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     return {
-      total: records.length,
-      liveBirths: records.filter((r) => r.outcome === "Live Birth").length,
-      twins: records.filter((r) => r.outcome === "Twins").length,
-      thisMonth: records.filter((r) => r.calving_date && new Date(r.calving_date) >= monthStart).length,
-      heifers: records.filter((r) => r.calf_gender === "F").length,
-      bulls: records.filter((r) => r.calf_gender === "M").length,
+      total: statsData?.total ?? 0,
+      liveBirths: statsData?.liveBirths ?? 0,
+      twins: statsData?.twins ?? 0,
+      thisMonth: statsData?.thisMonth ?? 0,
+      heifers: statsData?.heifers ?? 0,
+      bulls: statsData?.bulls ?? 0,
     };
-  }, [records]);
+  }, [statsData]);
 
-  const totalPages = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
-  const paged = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = calvingRes?.total ? Math.max(1, Math.ceil(calvingRes.total / PAGE_SIZE)) : 1;
 
   // Active confirmed pregnancies for the selected mother
   const motherPregnancies = useMemo(() => {
@@ -173,20 +178,22 @@ export default function CalvingPage() {
       <div className="flex-1 p-4 sm:p-6 space-y-6">
 
         {/* ── Stats ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: "Total Calvings", value: stats.total, icon: <Star size={16} className="text-brand-400" />, bg: "bg-brand-500/10" },
-            { label: "Live Births", value: stats.liveBirths, icon: <Check size={16} className="text-emerald-400" />, bg: "bg-emerald-500/10" },
-            { label: "Twins", value: stats.twins, icon: <Users size={16} className="text-purple-400" />, bg: "bg-purple-500/10" },
-            { label: "This Month", value: stats.thisMonth, icon: <CalendarDays size={16} className="text-amber-400" />, bg: "bg-amber-500/10" },
-            { label: "Heifers Born", value: stats.heifers, icon: <Baby size={16} className="text-pink-400" />, bg: "bg-pink-500/10" },
-            { label: "Bull Calves", value: stats.bulls, icon: <TrendingUp size={16} className="text-blue-400" />, bg: "bg-blue-500/10" },
-          ].map((s) => (
-            <div key={s.label} className="surface border rounded-2xl">
-              <StatCard label={s.label} value={s.value} icon={s.icon} iconBg={s.bg} />
-            </div>
-          ))}
-        </div>
+        <CollapsibleDashboard storageKey="terradairy:dashboard:calving">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Total Calvings", value: stats.total, icon: <Star size={16} className="text-brand-400" />, bg: "bg-brand-500/10" },
+              { label: "Live Births", value: stats.liveBirths, icon: <Check size={16} className="text-emerald-400" />, bg: "bg-emerald-500/10" },
+              { label: "Twins", value: stats.twins, icon: <Users size={16} className="text-purple-400" />, bg: "bg-purple-500/10" },
+              { label: "This Month", value: stats.thisMonth, icon: <CalendarDays size={16} className="text-amber-400" />, bg: "bg-amber-500/10" },
+              { label: "Heifers Born", value: stats.heifers, icon: <Baby size={16} className="text-pink-400" />, bg: "bg-pink-500/10" },
+              { label: "Bull Calves", value: stats.bulls, icon: <TrendingUp size={16} className="text-blue-400" />, bg: "bg-blue-500/10" },
+            ].map((s) => (
+              <div key={s.label} className="surface border rounded-2xl">
+                <StatCard label={s.label} value={s.value} icon={s.icon} iconBg={s.bg} />
+              </div>
+            ))}
+          </div>
+        </CollapsibleDashboard>
 
         {/* ── Table card ── */}
         <div className="surface border rounded-2xl overflow-hidden">
@@ -202,7 +209,7 @@ export default function CalvingPage() {
 
           {isLoading ? (
             <div className="p-8 text-center muted text-sm">Loading calving records…</div>
-          ) : records.length === 0 ? (
+          ) : paged.length === 0 ? (
             <div className="p-12 flex flex-col items-center gap-3">
               <Star size={40} className="text-brand-500/40" />
               <p className="font-medium">No calving records yet</p>
@@ -286,29 +293,15 @@ export default function CalvingPage() {
                 </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t text-xs muted">
-                  <span>
-                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, records.length)} of {records.length}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30"
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    <button
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30"
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="p-4 border-t">
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                totalRecords={calvingRes?.total}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            </div>
             </>
           )}
         </div>

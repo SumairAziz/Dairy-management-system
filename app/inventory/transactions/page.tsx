@@ -14,7 +14,8 @@ import {
 import { routes } from "@/lib/routes";
 import { TABLE_ROW } from "@/lib/theme";
 import { ItemLink } from "@/app/inventory/components/inventory-ui";
-import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { PaginationControls } from "@/app/components/pagination";
+import { Filter } from "lucide-react";
 import type { InventoryTransaction } from "@/types";
 
 const FILTER_KEYS = [
@@ -229,31 +230,13 @@ export default function InventoryTransactionsPage() {
           </table>
         </div>
 
-        <div className="flex justify-between items-center text-sm">
-          <span className="muted">
-            Showing {rows.length ? (page - 1) * pageSize + 1 : 0}–
-            {Math.min(page * pageSize, data?.total ?? 0)} of {data?.total ?? 0}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="p-2 rounded-lg border surface disabled:opacity-40"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span>
-              Page {page} / {totalPages}
-            </span>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="p-2 rounded-lg border surface disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          totalRecords={data?.total ?? 0}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </>
   );

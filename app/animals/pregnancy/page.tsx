@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/app/components/navbar";
 import { Modal, ConfirmModal, Field, inputCls } from "@/app/components/modal";
 import { StatCard } from "@/app/components/stat-card";
+import { CollapsibleDashboard } from "@/app/components/collapsible-dashboard";
+import { PaginationControls } from "@/app/components/pagination";
 import {
   Filter,
   ChevronLeft,
@@ -21,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   usePregnancyRecords,
+  usePregnancyStats,
   useCreatePregnancyRecord,
   useUpdatePregnancyRecord,
   useDeletePregnancyRecord,
@@ -102,16 +105,17 @@ export default function PregnancyPage() {
   const [deliveryDateNote, setDeliveryDateNote] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // Dashboard/filters need to reason about the *whole* dataset (status,
-  // gestation progress, etc. are computed client-side, not stored columns),
-  // so we pull everything once and only push the one real filter we have
-  // (animal_id) to the server.
+  const { data: statsData } = usePregnancyStats();
+
   const serverParams = useMemo(
     () => ({
-      pageSize: "1000",
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
       ...(animalFilter ? { animal_id: animalFilter } : {}),
+      ...(statusFilter && statusFilter !== "all" ? { status: statusFilter } : {}),
+      ...(confirmedFilter && confirmedFilter !== "all" ? { confirmed: confirmedFilter } : {}),
     }),
-    [animalFilter],
+    [page, animalFilter, statusFilter, confirmedFilter],
   );
   const { data, isLoading } = usePregnancyRecords(serverParams);
   const { data: animalsData } = useAnimals({
@@ -126,13 +130,11 @@ export default function PregnancyPage() {
 
   const animals = animalsData?.data ?? [];
 
-  // Re-render every minute so day counts / "Due Soon" / "Overdue" stay
-  // correct on a long-open tab without a backend job.
   const now = useNow();
 
   const allRecords = data?.data ?? [];
 
-  const withComputed = useMemo(
+  const pageItems = useMemo(
     () =>
       allRecords.map((r) => ({
         record: r,
@@ -142,81 +144,18 @@ export default function PregnancyPage() {
     [allRecords, now],
   );
 
-  const filtered = useMemo(
-    () =>
-      withComputed.filter((w) => {
-        if (
-          withinDaysFilter != null &&
-          !Number.isNaN(withinDaysFilter) &&
-          withinDaysFilter > 0
-        ) {
-          if (w.progress.isDelivered || w.progress.isOverdue) return false;
-          if (
-            w.progress.daysRemaining < 0 ||
-            w.progress.daysRemaining > withinDaysFilter
-          ) {
-            return false;
-          }
-        } else if (statusFilter !== "all" && w.status.key !== statusFilter) {
-          return false;
-        }
-        if (confirmedFilter === "yes" && w.record.pregnancy_confirmed !== true)
-          return false;
-        if (confirmedFilter === "no" && w.record.pregnancy_confirmed === true)
-          return false;
-        return true;
-      }),
-    [withComputed, statusFilter, confirmedFilter, withinDaysFilter],
-  );
+  const totalPages = data?.total ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  // ── Dashboard summary (six cards, all computed from existing fields) ──
   const dashboard = useMemo(() => {
-    const total = withComputed.length;
-    // "Confirmed" = status is exactly "Confirmed" (not Delivered, Failed, Pending)
-    const confirmed = withComputed.filter(
-      (w) => w.record.status === "Confirmed",
-    ).length;
-    // "Pending Confirmation" = any non-terminal, non-confirmed status
-    const pendingConfirmation = withComputed.filter(
-      (w) => w.record.status !== "Confirmed" && w.record.status !== "Delivered" && w.record.status !== "Failed",
-    ).length;
-    const dueThisMonth = withComputed.filter((w) => {
-      if (w.progress.isDelivered) return false;
-      const expected = w.record.expected_delivery_date
-        ? new Date(w.record.expected_delivery_date)
-        : null;
-      if (!expected) return false;
-      return (
-        expected.getFullYear() === now.getFullYear() &&
-        expected.getMonth() === now.getMonth()
-      );
-    }).length;
-    const overdue = withComputed.filter((w) => w.progress.isOverdue).length;
-    // Active pregnancies = status is not Delivered or Failed
-    const activePregnancies = withComputed.filter(
-      (w) => w.record.status !== "Delivered" && w.record.status !== "Failed",
-    );
-    const avgGestationPercent = activePregnancies.length
-      ? Math.round(
-          activePregnancies.reduce(
-            (sum, w) => sum + w.progress.gestationPercent,
-            0,
-          ) / activePregnancies.length,
-        )
-      : 0;
-
     return {
-      total,
-      confirmed,
-      pendingConfirmation,
-      dueThisMonth,
-      overdue,
-      avgGestationPercent,
+      total: statsData?.total ?? 0,
+      confirmed: statsData?.confirmed ?? 0,
+      pendingConfirmation: statsData?.pendingConfirmation ?? 0,
+      dueThisMonth: statsData?.dueThisMonth ?? 0,
+      overdue: statsData?.overdue ?? 0,
+      avgGestationPercent: 0,
     };
-  }, [withComputed, now]);
+  }, [statsData]);
 
   // ── Auto-fill insemination date + expected delivery from last breeding ──
   // Only active when creating a new record (editId === null) and an animal
@@ -357,81 +296,93 @@ export default function PregnancyPage() {
       />
       <div className="p-6 space-y-5">
         {/* ── Dashboard: six summary cards ─────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Total Pregnancies"
-              value={String(dashboard.total)}
-              icon={<Baby size={16} className="text-sky-400" />}
-              iconBg="bg-sky-500/10"
-              href="/animals/pregnancy"
-              active={statusFilter === "all"}
-              tone="pregnancy"
-            />
+        <CollapsibleDashboard storageKey="terradairy:dashboard:pregnancy">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Total Pregnancies"
+                value={String(dashboard.total)}
+                icon={<Baby size={16} className="text-sky-400" />}
+                iconBg="bg-sky-500/10"
+                href="/animals/pregnancy"
+                active={statusFilter === "all"}
+                tone="pregnancy"
+              />
+            </div>
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Confirmed"
+                value={String(dashboard.confirmed)}
+                icon={<Heart size={16} className="text-violet-400" />}
+                iconBg="bg-violet-500/10"
+                href={buildFilterUrl("/animals/pregnancy", { status: "confirmed" })}
+                active={statusFilter === "confirmed"}
+                tone="pregnancy"
+              />
+            </div>
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Pending Confirmation"
+                value={String(dashboard.pendingConfirmation)}
+                icon={<Clock size={16} className="text-amber-400" />}
+                iconBg="bg-amber-500/10"
+                href={buildFilterUrl("/animals/pregnancy", { status: "pending" })}
+                active={statusFilter === "pending"}
+                tone="warning"
+              />
+            </div>
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Due This Month"
+                value={String(dashboard.dueThisMonth)}
+                icon={<CalendarClock size={16} className="text-violet-400" />}
+                iconBg="bg-violet-500/10"
+                href={buildFilterUrl("/animals/pregnancy", { status: "due_soon" })}
+                active={statusFilter === "due_soon"}
+                tone="warning"
+              />
+            </div>
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Overdue Deliveries"
+                value={String(dashboard.overdue)}
+                icon={<AlertTriangle size={16} className="text-red-400" />}
+                iconBg="bg-red-500/10"
+                href={buildFilterUrl("/animals/pregnancy", { status: "overdue" })}
+                active={statusFilter === "overdue"}
+                tone="danger"
+              />
+            </div>
+            <div className="surface border rounded-2xl">
+              <StatCard
+                label="Avg Gestation Progress"
+                value={`${dashboard.avgGestationPercent}%`}
+                icon={<Gauge size={16} className="text-emerald-400" />}
+                iconBg="bg-emerald-500/10"
+                href={buildFilterUrl("/animals/pregnancy", { status: "confirmed" })}
+                tone="success"
+              />
+            </div>
           </div>
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Confirmed"
-              value={String(dashboard.confirmed)}
-              icon={<Heart size={16} className="text-violet-400" />}
-              iconBg="bg-violet-500/10"
-              href={buildFilterUrl("/animals/pregnancy", { status: "confirmed" })}
-              active={statusFilter === "confirmed"}
-              tone="pregnancy"
-            />
-          </div>
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Pending Confirmation"
-              value={String(dashboard.pendingConfirmation)}
-              icon={<Clock size={16} className="text-amber-400" />}
-              iconBg="bg-amber-500/10"
-              href={buildFilterUrl("/animals/pregnancy", { status: "pending" })}
-              active={statusFilter === "pending"}
-              tone="warning"
-            />
-          </div>
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Due This Month"
-              value={String(dashboard.dueThisMonth)}
-              icon={<CalendarClock size={16} className="text-violet-400" />}
-              iconBg="bg-violet-500/10"
-              href={buildFilterUrl("/animals/pregnancy", { status: "due_soon" })}
-              active={statusFilter === "due_soon"}
-              tone="warning"
-            />
-          </div>
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Overdue Deliveries"
-              value={String(dashboard.overdue)}
-              icon={<AlertTriangle size={16} className="text-red-400" />}
-              iconBg="bg-red-500/10"
-              href={buildFilterUrl("/animals/pregnancy", { status: "overdue" })}
-              active={statusFilter === "overdue"}
-              tone="danger"
-            />
-          </div>
-          <div className="surface border rounded-2xl">
-            <StatCard
-              label="Avg Gestation Progress"
-              value={`${dashboard.avgGestationPercent}%`}
-              icon={<Gauge size={16} className="text-emerald-400" />}
-              iconBg="bg-emerald-500/10"
-              href={buildFilterUrl("/animals/pregnancy", { status: "confirmed" })}
-              tone="success"
-            />
-          </div>
-        </div>
+        </CollapsibleDashboard>
 
         {/* ── Status quick-filter tabs ─────────────────────────────── */}
         <div className="flex flex-wrap gap-2 border-b border-black/5 dark:border-white/10 pb-px">
           {PREGNANCY_STATUS_FILTERS.map((s) => {
-            const count =
-              s.key === "all"
-                ? withComputed.length
-                : withComputed.filter((w) => w.status.key === s.key).length;
+            const getStatusTabCount = (key: string) => {
+              if (!statsData) return 0;
+              switch (key) {
+                case "all": return statsData.total;
+                case "confirmed": return statsData.confirmed;
+                case "pending": return statsData.pendingConfirmation;
+                case "due_soon": return statsData.dueThisMonth;
+                case "overdue": return statsData.overdue;
+                case "delivered": return statsData.delivered;
+                case "failed": return statsData.failed;
+                default: return 0;
+              }
+            };
+            const count = getStatusTabCount(s.key);
             return (
               <button
                 key={s.key}
@@ -704,28 +655,13 @@ export default function PregnancyPage() {
           </div>
         </div>
 
-        <div className="flex justify-between items-center text-sm">
-          <span className="muted">
-            Page {page} of {totalPages} · {filtered.length} record
-            {filtered.length !== 1 ? "s" : ""}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="p-2 rounded surface border disabled:opacity-40"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          totalRecords={data?.total}
+          pageSize={data?.pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

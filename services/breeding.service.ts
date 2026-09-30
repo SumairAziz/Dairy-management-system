@@ -128,3 +128,42 @@ export async function remove(id: number) {
 
   await prisma.breeding_records.delete({ where: { breeding_id: id } });
 }
+
+/**
+ * Aggregated breeding statistics for the dashboard section.
+ * Uses Prisma groupBy so the frontend doesn't need to fetch all records.
+ */
+export async function getStats() {
+  const [byResult, byMethod, total] = await Promise.all([
+    prisma.breeding_records.groupBy({
+      by: ["result"],
+      _count: true,
+    }),
+    prisma.breeding_records.groupBy({
+      by: ["method"],
+      _count: true,
+    }),
+    prisma.breeding_records.count(),
+  ]);
+
+  let success = 0;
+  let failed = 0;
+  let pending = 0;
+  for (const g of byResult) {
+    if (g.result === "Success") success = g._count;
+    else if (g.result === "Failed") failed = g._count;
+    else pending += g._count; // null or "Pending"
+  }
+
+  let natural = 0;
+  let ai = 0;
+  for (const g of byMethod) {
+    if (g.method === "Natural Mating") natural = g._count;
+    else if (g.method === "Artificial Insemination") ai = g._count;
+  }
+
+  const resolved = success + failed;
+  const successRate = resolved > 0 ? Math.round((success / resolved) * 100) : 0;
+
+  return { total, natural, ai, success, pending, successRate };
+}
